@@ -1,0 +1,16 @@
+# Configuration for https://goreleaser.com/
+project_name: authenticator
+
+builds:
+  - binary: ack-ram-authenticator
+    main: ./cmd/ack-ram-authenticator/
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - "-s -w -X main.version={{.Version}} -X main.commit={{.Commit}}"
