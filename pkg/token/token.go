@@ -30,9 +30,9 @@ import (
 
 	"crypto/hmac"
 	"crypto/sha1"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/arn"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/responses"
 	acsSts "github.com/aliyun/alibaba-cloud-sdk-go/services/sts"
-	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/arn"
 	"github.com/satori/go.uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientauthv1alpha1 "k8s.io/client-go/pkg/apis/clientauthentication/v1alpha1"

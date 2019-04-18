@@ -58,7 +58,7 @@ type handler struct {
 	metrics          metrics
 }
 
-// metrics are handles to the collectors for prometheous for the various metrics we are tracking.
+// metrics are handles to the collectors for prometheus for the various metrics we are tracking.
 type metrics struct {
 	latency *prometheus.HistogramVec
 }
