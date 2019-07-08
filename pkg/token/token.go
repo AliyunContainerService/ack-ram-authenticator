@@ -416,7 +416,7 @@ func apiCaller(AccessKeyID, AccessKeySecret, SecurityToken, clusterID string) (s
 	queryStr := "SignatureVersion=" + stsSignVersion
 	queryStr += "&Format=" + respBodyFormat
 	queryStr += "&Timestamp=" + url.QueryEscape(time.Now().UTC().Format(timeFormat))
-	queryStr += "&AccessKgo get github.com/prometheus/client_golang/prometheuseyId=" + AccessKeyID
+	queryStr += "&AccessKeyId=" + AccessKeyID
 	queryStr += "&SignatureMethod=HMAC-SHA1"
 	queryStr += "&Version=" + stsAPIVersion
 	queryStr += "&SignatureNonce=" + uuid.NewV4().String()
