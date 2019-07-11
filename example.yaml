@@ -87,7 +87,7 @@ spec:
       # - output (output kubeconfig to plug into your apiserver configuration, mounted from the host)
       containers:
       - name: ack-ram-authenticator
-        image: registry.cn-hangzhou.aliyuncs.com/acs/ack-ram-authenticator:v1.0.0
+        image: registry.cn-hangzhou.aliyuncs.com/acs/ack-ram-authenticator:v1.0.1
         imagePullPolicy: Always
         args:
         - server
