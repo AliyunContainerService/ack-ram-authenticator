@@ -142,8 +142,9 @@ type getCallerIdentityWrapper struct {
 }
 
 type acsCredentials struct {
-	AccessKeyID     string `json:"AcsAccessKeyId"`
-	AccessKeySecret string `json:"AcsAccessKeySecret"`
+	AccessKeyID         string `json:"AcsAccessKeyId"`
+	AccessKeySecret     string `json:"AcsAccessKeySecret"`
+	AccessSecurityToken string `json:"AcsAccessSecurityToken"`
 }
 
 // JSONStruct struct
@@ -190,7 +191,12 @@ func (g generator) GetWithRole(clusterID string, roleARN string) (Token, error) 
 	credentialsFile := getCredentialsFile()
 	JSONParse.Load(credentialsFile, &v)
 	tokenExpiration := time.Now().Local().Add(presignedURLExpiration - 1*time.Minute)
-	if roleARN != "" {
+	if v.AccessSecurityToken != "" {
+		getCallerIdentityURL, err = apiCaller(v.AccessKeyID, v.AccessKeySecret, v.AccessSecurityToken, clusterID)
+		if err != nil {
+			return Token{}, err
+		}
+	} else if roleARN != "" {
 		assumeClient, err := acsSts.NewClientWithAccessKey("", v.AccessKeyID, v.AccessKeySecret)
 		if err != nil {
 			return Token{}, fmt.Errorf("could not assume role with provided AK: %v", err)

@@ -130,6 +130,15 @@ Credentials can be specified for use with `ack-ram-authenticator` via create fil
   "AcsAccessKeySecret": "xxxxxxxxxxxxxxxx"
 }
 ```
+if you are using a STS Token, the ~/.acs/credentials file will be like:
+```
+{
+  "AcsAccessKeyId": "xxxxxx",
+  "AcsAccessKeySecret": "xxxxxx",
+  "AcsAccessSecurityToken": "xxxxxx"
+}
+
+```
 This includes specifying RAM credentials by utilizing a credentials file.
 
 
