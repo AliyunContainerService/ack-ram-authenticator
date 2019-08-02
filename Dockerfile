@@ -14,5 +14,5 @@
 
 FROM alpine:3.7
 RUN apk add --update ca-certificates
-COPY dist/linux_amd64/ack-ram-authenticator /
+COPY dist/authenticator_linux_amd64/ack-ram-authenticator /
 ENTRYPOINT ["/ack-ram-authenticator"]
