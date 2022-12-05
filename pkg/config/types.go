@@ -16,23 +16,8 @@ limitations under the License.
 
 package config
 
-// RoleMapping is a mapping of an RAM Role ARN to a Kubernetes username and a
-// list of Kubernetes groups. The username and groups are specified as templates
-// that may optionally contain two template parameters:
-//
-//  1) "{{AccountID}}" is the 16 digit ID.
-//  2) "{{SessionName}}" is the role session name.
-//
-// The meaning of SessionName depends on the type of entity assuming the role.
-// In the case of an ECS instance role this will be the ECS instance ID. In the
-// case of a federated role it will be the federated identity (controlled by the
-// federated identity provider). In the case of a role assumed directly with
-// sts:AssumeRole it will be user controlled.
-//
-// You can use plain values without parameters to have a more static mapping.
-type RoleMapping struct {
-	// RoleARN is the RAM Resource Name of the role. (e.g., "acs:ram::000000000000:role/Foo").
-	RoleARN string
+type IdentityMapping struct {
+	IdentityARN string
 
 	// Username is the username pattern that this instances assuming this
 	// role will have in Kubernetes.
@@ -43,23 +28,81 @@ type RoleMapping struct {
 	Groups []string
 }
 
-// UserMapping is a static mapping of a single RAM User ARN to a
-// Kubernetes username and a list of Kubernetes groups
-type UserMapping struct {
-	// UserARN is the RAM Resource Name of the user. (e.g., "acs:ram::000000000000:user/Test").
-	UserARN string
+// RoleMapping is a mapping of an AWS Role ARN to a Kubernetes username and a
+// list of Kubernetes groups. The username and groups are specified as templates
+// that may optionally contain two template parameters:
+//
+//  1. "{{AccountID}}" is the 12 digit AlibabaCloud ID.
+//  2. "{{SessionName}}" is the role session name.
+//
+// The meaning of SessionName depends on the type of entity assuming the role.
+// In the case of an EC2 instance role this will be the EC2 instance ID. In the
+// case of a federated role it will be the federated identity (controlled by the
+// federated identity provider). In the case of a role assumed directly with
+// sts:AssumeRole it will be user controlled.
+//
+// You can use plain values without parameters to have a more static mapping.
+type RoleMapping struct {
+	// RoleARN is the AWS Resource Name of the role. (e.g., "arn:aws:iam::000000000000:role/Foo").
+	RoleARN string `json:"rolearn,omitempty" yaml:"rolearn,omitempty"`
 
-	// Username is the Kubernetes username this role will authenticate as (e.g., `mycorp:foo`)
-	Username string
+	// SSO contains fields used to match Role ARNs that
+	// are generated for AWS SSO sessions.
+	SSO *SSOARNMatcher `json:"sso,omitempty" yaml:"sso,omitempty"`
 
-	// Groups is a list of Kubernetes groups this role will authenticate as (e.g., `system:masters`)
-	Groups []string
+	// Username is the username pattern that this instances assuming this
+	// role will have in Kubernetes.
+	Username string `json:"username" yaml:"username"`
+
+	// Groups is a list of Kubernetes groups this role will authenticate
+	// as (e.g., `system:masters`). Each group name can include placeholders.
+	Groups []string `json:"groups" yaml:"groups"`
 }
 
-// Config specifies the configuration for a ack-ram-authenticator server
+// UserMapping is a static mapping of a single AWS User ARN to a
+// Kubernetes username and a list of Kubernetes groups
+type UserMapping struct {
+	// UserARN is the AWS Resource Name of the user. (e.g., "arn:aws:iam::000000000000:user/Test").
+	UserARN string `json:"userarn" yaml:"userarn"`
+
+	// Username is the Kubernetes username this role will authenticate as (e.g., `mycorp:foo`)
+	Username string `json:"username" yaml:"username"`
+
+	// Groups is a list of Kubernetes groups this role will authenticate as (e.g., `system:masters`)
+	Groups []string `json:"groups" yaml:"groups"`
+}
+
+// SSOARNMatcher contains fields used to match Role ARNs that
+// are generated for AWS SSO sessions. These SSO Role ARNs
+// follow this pattern:
+//
+// arn:aws:iam::<ACCOUNT_ID>:role/aws-reserved/sso.amazonaws.com/<SSO_REGION>/AWSReservedSSO_<SSO_PermissionSetName>_<RANDOM_STRING>
+//
+// These ARNs are canonicalized to look like:
+//
+// arn:aws:iam::<ACCOUNT_ID>:role/AWSReservedSSO_<SSO_PermissionSetName>_<RANDOM_STRING>
+//
+// This struct enables aws-iam-authenticator to match SSO generated Role ARNs with
+// handling for their random string suffixes.
+type SSOARNMatcher struct {
+	// PermissionSetName is the name of the SSO Permission Set that will be found
+	// after the "AWSReservedSSO_" string in the Role ARN.
+	// See: https://docs.aws.amazon.com/singlesignon/latest/userguide/permissionsets.html
+	PermissionSetName string `json:"permissionSetName" yaml:"permissionSetName"`
+	// AccountID is the AWS Account ID to match in the Role ARN
+	AccountID string `json:"accountID" yaml:"accountID"`
+	// Partition is the AWS partition to match in the Role ARN. Defaults to "aws"
+	Partition string `json:"partition,omitempty" yaml:"partition,omitempty"`
+}
+
+// Config specifies the configuration for a aws-iam-authenticator server
 type Config struct {
+	// PartitionID is the AWS partition tokens are valid in. See
+	// endpoints.DefaultPartitions()
+	PartitionID string
+
 	// ClusterID is a unique-per-cluster identifier for your
-	// ack-ram-authenticator installation.
+	// aws-iam-authenticator installation.
 	ClusterID string
 
 	// KubeconfigPregenerated is set to `true` when a webhook kubeconfig is
@@ -70,7 +113,7 @@ type Config struct {
 	// HostPort is the TCP Port on which to listen for authentication checks.
 	HostPort int
 
-	// Hostname is the hostname that the server bind to.
+	// Hostname is the address clients should use for this server.
 	Hostname string
 
 	// GenerateKubeconfigPath is the output path where a generated webhook
@@ -83,15 +126,48 @@ type Config struct {
 	// server webhook configuration doesn't change on restart.
 	StateDir string
 
-	// RoleMappings is a list of mappings from RAM Role to
+	// RoleMappings is a list of mappings from AWS IAM Role to
 	// Kubernetes username + groups.
 	RoleMappings []RoleMapping
 
-	// UserMappings is a list of mappings from RAM User to
+	// UserMappings is a list of mappings from AWS IAM User to
 	// Kubernetes username + groups.
 	UserMappings []UserMapping
+
+	// AutoMappedAWSAccounts is a list of AWS accounts that are allowed without an explicit user/role mapping.
+	// IAM ARN from these accounts automatically maps to the Kubernetes username.
+	AutoMappedAWSAccounts []string
+
+	// ScrubbedAWSAccounts is a list of AWS accounts that the role ARNs and uids
+	// are scrubbed from server log statements
+	ScrubbedAWSAccounts []string
+
+	// ServerEC2DescribeInstancesRoleARN is an optional AWS Resource Name for an IAM Role to be assumed
+	// before calling ec2:DescribeInstances to determine the private DNS of the calling kubelet (EC2 Instance).
+	// If nil, defaults to using the IAM Role attached to the instance where aws-iam-authenticator is
+	// running.
+	ServerEC2DescribeInstancesRoleARN string
 
 	// Address defines the hostname or IP Address to bind the HTTPS server to listen to. This is useful when creating
 	// a local server to handle the authentication request for development.
 	Address string
+
+	// Master is an optional param which configures api servers endpoint for listening for new CRDs
+	// +optional
+	Master string
+
+	// Kubeconfig is an optional param which configures the kubeconfig path for connecting to a specific
+	// API server this is useful for local development, allowing you to connect to a remote server.
+	// +optional
+	Kubeconfig string
+
+	// BackendMode is an ordered list of backends to get mappings from. Comma-delimited list of: MountedFile,EKSConfigMap,CRD
+	BackendMode []string
+
+	// Ec2 DescribeInstances rate limiting variables initially set to defaults until we completely
+	// understand we don't need to change
+	EC2DescribeInstancesQps   int
+	EC2DescribeInstancesBurst int
+	//Dynamic File Path for DynamicFile BackendMode
+	DynamicFilePath string
 }

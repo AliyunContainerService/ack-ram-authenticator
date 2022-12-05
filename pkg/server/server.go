@@ -303,3 +303,47 @@ func (h *handler) renderTemplate(template string, identity *token.Identity) (str
 
 	return template, nil
 }
+
+func (h *handler) renderTemplates(mapping config.IdentityMapping, identity *token.Identity) (string, []string, error) {
+	var username string
+	groups := []string{}
+	var err error
+
+	userPattern := mapping.Username
+	username, err = h.renderTemplate(userPattern, identity)
+	if err != nil {
+		return "", nil, fmt.Errorf("error rendering username template %q: %s", userPattern, err.Error())
+	}
+
+	for _, groupPattern := range mapping.Groups {
+		group, err := h.renderTemplate(groupPattern, identity)
+		if err != nil {
+			return "", nil, fmt.Errorf("error rendering group template %q: %s", groupPattern, err.Error())
+		}
+		groups = append(groups, group)
+	}
+
+	return username, groups, nil
+}
+
+func (h *handler) renderTemplate(template string, identity *token.Identity) (string, error) {
+	// Private DNS requires EC2 API call
+	if strings.Contains(template, "{{EC2PrivateDNSName}}") {
+		if !instanceIDPattern.MatchString(identity.SessionName) {
+			return "", fmt.Errorf("SessionName did not contain an instance id")
+		}
+		privateDNSName, err := h.ec2Provider.GetPrivateDNSName(identity.SessionName)
+		if err != nil {
+			return "", err
+		}
+		template = strings.Replace(template, "{{EC2PrivateDNSName}}", privateDNSName, -1)
+	}
+
+	template = strings.Replace(template, "{{AccountID}}", identity.AccountID, -1)
+	sessionName := strings.Replace(identity.SessionName, "@", "-", -1)
+	template = strings.Replace(template, "{{SessionName}}", sessionName, -1)
+	template = strings.Replace(template, "{{SessionNameRaw}}", identity.SessionName, -1)
+	template = strings.Replace(template, "{{AccessKeyID}}", identity.AccessKeyID, -1)
+
+	return template, nil
+}
