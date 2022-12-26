@@ -1,7 +1,7 @@
 package dynamicfile
 
 import (
-	"sigs.k8s.io/aws-iam-authenticator/pkg/config"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
 	"sigs.k8s.io/aws-iam-authenticator/pkg/mapper"
 	"strings"
 )

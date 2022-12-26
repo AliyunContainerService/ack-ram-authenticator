@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"sigs.k8s.io/aws-iam-authenticator/pkg/config"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
 )
 
 var (
@@ -129,7 +129,7 @@ var updatedFileContent = `
     },
     {
       "rolearn": "arn:aws:iam::000000000003:role/KubernetesNode",
-      "username": "system:node:{{EC2PrivateDNSName}}",
+      "username": "system:node:{{ECSPrivateDNSName}}",
       "groups": [
         "system:nodes",
         "system:bootstrappers"

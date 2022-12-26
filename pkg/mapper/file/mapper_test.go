@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"sigs.k8s.io/aws-iam-authenticator/pkg/config"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
 )
 
 func init() {

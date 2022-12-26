@@ -9,11 +9,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
 	"github.com/fsnotify/fsnotify"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/aws-iam-authenticator/pkg/arn"
-	"sigs.k8s.io/aws-iam-authenticator/pkg/config"
 )
 
 type DynamicFileMapStore struct {

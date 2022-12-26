@@ -98,7 +98,7 @@ subjects:
 # data:
 #   mapRoles: |
 #     - rolearn: <ARN of instance role (not instance profile)>
-#       username: system:node:{{EC2PrivateDNSName}}
+#       username: system:node:{{ECSPrivateDNSName}}
 #       groups:
 #         - system:bootstrappers
 #         - system:nodes

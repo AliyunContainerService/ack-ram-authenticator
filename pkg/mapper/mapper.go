@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"sigs.k8s.io/aws-iam-authenticator/pkg/config"
 )
 
 const (

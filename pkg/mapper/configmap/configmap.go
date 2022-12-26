@@ -19,7 +19,7 @@ import (
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"sigs.k8s.io/aws-iam-authenticator/pkg/config"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
 	"sigs.k8s.io/aws-iam-authenticator/pkg/metrics"
 )
 
@@ -28,8 +28,8 @@ type MapStore struct {
 	users map[string]config.UserMapping
 	roles map[string]config.RoleMapping
 	// Used as set.
-	awsAccounts map[string]interface{}
-	configMap   v1.ConfigMapInterface
+	alibabaCloudAccounts map[string]interface{}
+	configMap            v1.ConfigMapInterface
 }
 
 func New(masterURL, kubeConfig string) (*MapStore, error) {
@@ -75,8 +75,8 @@ func (ms *MapStore) startLoadConfigMap(stopCh <-chan struct{}) {
 						logrus.Info("Resetting configmap on delete")
 						userMappings := make([]config.UserMapping, 0)
 						roleMappings := make([]config.RoleMapping, 0)
-						awsAccounts := make([]string, 0)
-						ms.saveMap(userMappings, roleMappings, awsAccounts)
+						alibabaCloudAccounts := make([]string, 0)
+						ms.saveMap(userMappings, roleMappings, alibabaCloudAccounts)
 					case watch.Added, watch.Modified:
 						switch cm := r.Object.(type) {
 						case *core_v1.ConfigMap:
@@ -84,11 +84,11 @@ func (ms *MapStore) startLoadConfigMap(stopCh <-chan struct{}) {
 								break
 							}
 							logrus.Info("Received aws-auth watch event")
-							userMappings, roleMappings, awsAccounts, err := ParseMap(cm.Data)
+							userMappings, roleMappings, alibabaCloudAccounts, err := ParseMap(cm.Data)
 							if err != nil {
 								logrus.Errorf("There was an error parsing the config maps.  Only saving data that was good, %+v", err)
 							}
-							ms.saveMap(userMappings, roleMappings, awsAccounts)
+							ms.saveMap(userMappings, roleMappings, alibabaCloudAccounts)
 							if err != nil {
 								logrus.Error(err)
 							}
@@ -110,7 +110,7 @@ func (err ErrParsingMap) Error() string {
 	return fmt.Sprintf("error parsing config map: %v", err.errors)
 }
 
-func ParseMap(m map[string]string) (userMappings []config.UserMapping, roleMappings []config.RoleMapping, awsAccounts []string, err error) {
+func ParseMap(m map[string]string) (userMappings []config.UserMapping, roleMappings []config.RoleMapping, alibabaCloudAccounts []string, err error) {
 	errs := make([]error, 0)
 	rawUserMappings := make([]config.UserMapping, 0)
 	userMappings = make([]config.UserMapping, 0)
@@ -158,9 +158,9 @@ func ParseMap(m map[string]string) (userMappings []config.UserMapping, roleMappi
 		}
 	}
 
-	awsAccounts = make([]string, 0)
+	alibabaCloudAccounts = make([]string, 0)
 	if accountsData, ok := m["mapAccounts"]; ok {
-		err := yaml.Unmarshal([]byte(accountsData), &awsAccounts)
+		err := yaml.Unmarshal([]byte(accountsData), &alibabaCloudAccounts)
 		if err != nil {
 			errs = append(errs, err)
 		}
@@ -170,10 +170,10 @@ func ParseMap(m map[string]string) (userMappings []config.UserMapping, roleMappi
 		logrus.Warnf("Errors parsing configmap: %+v", errs)
 		err = ErrParsingMap{errors: errs}
 	}
-	return userMappings, roleMappings, awsAccounts, err
+	return userMappings, roleMappings, alibabaCloudAccounts, err
 }
 
-func EncodeMap(userMappings []config.UserMapping, roleMappings []config.RoleMapping, awsAccounts []string) (m map[string]string, err error) {
+func EncodeMap(userMappings []config.UserMapping, roleMappings []config.RoleMapping, alibabaCloudAccounts []string) (m map[string]string, err error) {
 	m = make(map[string]string)
 
 	if len(userMappings) > 0 {
@@ -192,8 +192,8 @@ func EncodeMap(userMappings []config.UserMapping, roleMappings []config.RoleMapp
 		m["mapRoles"] = string(body)
 	}
 
-	if len(awsAccounts) > 0 {
-		body, err := yaml.Marshal(awsAccounts)
+	if len(alibabaCloudAccounts) > 0 {
+		body, err := yaml.Marshal(alibabaCloudAccounts)
 		if err != nil {
 			return nil, err
 		}
@@ -206,13 +206,13 @@ func EncodeMap(userMappings []config.UserMapping, roleMappings []config.RoleMapp
 func (ms *MapStore) saveMap(
 	userMappings []config.UserMapping,
 	roleMappings []config.RoleMapping,
-	awsAccounts []string) {
+	alibabaCloudAccounts []string) {
 
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
 	ms.users = make(map[string]config.UserMapping)
 	ms.roles = make(map[string]config.RoleMapping)
-	ms.awsAccounts = make(map[string]interface{})
+	ms.alibabaCloudAccounts = make(map[string]interface{})
 
 	for _, user := range userMappings {
 		ms.users[user.Key()] = user
@@ -220,8 +220,8 @@ func (ms *MapStore) saveMap(
 	for _, role := range roleMappings {
 		ms.roles[role.Key()] = role
 	}
-	for _, awsAccount := range awsAccounts {
-		ms.awsAccounts[awsAccount] = nil
+	for _, aliAccount := range alibabaCloudAccounts {
+		ms.alibabaCloudAccounts[aliAccount] = nil
 	}
 }
 
@@ -256,6 +256,6 @@ func (ms *MapStore) RoleMapping(arn string) (config.RoleMapping, error) {
 func (ms *MapStore) AWSAccount(id string) bool {
 	ms.mutex.RLock()
 	defer ms.mutex.RUnlock()
-	_, ok := ms.awsAccounts[id]
+	_, ok := ms.alibabaCloudAccounts[id]
 	return ok
 }

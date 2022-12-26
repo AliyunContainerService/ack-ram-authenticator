@@ -3,7 +3,7 @@ package mapper
 import (
 	"testing"
 
-	"sigs.k8s.io/aws-iam-authenticator/pkg/config"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
 )
 
 func TestValidateBackendMode(t *testing.T) {

@@ -4,17 +4,21 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/file"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/metrics"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/token"
 	"io/ioutil"
+	authenticationv1beta1 "k8s.io/api/authentication/v1beta1"
+	"k8s.io/client-go/tools/cache"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	iamauthenticatorv1alpha1 "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/apis/iamauthenticator/v1alpha1"
 	"strings"
 	"testing"
 
-	authenticationv1beta1 "k8s.io/api/authentication/v1beta1"
-
-	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
-	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/token"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -44,7 +48,7 @@ func verifyAuthResult(t *testing.T, resp *httptest.ResponseRecorder, expected au
 	}
 }
 
-func tokenReview(username, uid string, groups []string) authenticationv1beta1.TokenReview {
+func tokenReview(username, uid string, groups []string, extrasMap map[string]authenticationv1beta1.ExtraValue) authenticationv1beta1.TokenReview {
 	return authenticationv1beta1.TokenReview{
 		Status: authenticationv1beta1.TokenReviewStatus{
 			Authenticated: true,
@@ -52,20 +56,45 @@ func tokenReview(username, uid string, groups []string) authenticationv1beta1.To
 				Username: username,
 				UID:      uid,
 				Groups:   groups,
+				Extra:    extrasMap,
 			},
 		},
 	}
 }
 
-func setup(verifier token.Verifier) *handler {
-	return &handler{
-		verifier: verifier,
-		metrics:  createMetrics(),
+type testEC2Provider struct {
+	name  string
+	qps   int
+	burst int
+}
+
+func newIAMIdentityMapping(arn, canonicalARN, username string, groups []string) *iamauthenticatorv1alpha1.IAMIdentityMapping {
+	return &iamauthenticatorv1alpha1.IAMIdentityMapping{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-iam-identity-mapping",
+		},
+		Spec: iamauthenticatorv1alpha1.IAMIdentityMappingSpec{
+			ARN:      arn,
+			Username: username,
+			Groups:   groups,
+		},
+		Status: iamauthenticatorv1alpha1.IAMIdentityMappingStatus{
+			CanonicalARN: canonicalARN,
+		},
 	}
 }
 
-func cleanup(m metrics) {
-	prometheus.Unregister(m.latency)
+func setup(verifier token.Verifier) *handler {
+	metrics.InitMetrics(prometheus.NewRegistry())
+	return &handler{
+		verifier: verifier,
+	}
+}
+
+func createIndexer() cache.Indexer {
+	return cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{
+		"canonicalARN": controller.IndexIAMIdentityMappingByCanonicalArn,
+	})
 }
 
 // Count of expected metrics
@@ -77,18 +106,18 @@ type validateOpts struct {
 func checkHistogramSampleCount(t *testing.T, name string, actual, expected uint64) {
 	t.Helper()
 	if actual != expected {
-		t.Errorf("expected %d samples histogram authenticator_ack_authenticate_latency_seconds with labels %s but got %d", expected, name, actual)
+		t.Errorf("expected %d samples histogram aws_iam_authenticator_authenticate_latency_seconds with labels %s but got %d", expected, name, actual)
 	}
 }
 
 func validateMetrics(t *testing.T, opts validateOpts) {
 	t.Helper()
-	metrics, err := prometheus.DefaultGatherer.Gather()
-	if err != nil || len(metrics) == 0 {
+	metricFamilies, err := prometheus.DefaultGatherer.Gather()
+	if err != nil || len(metricFamilies) == 0 {
 		t.Fatalf("Unable to gather metrics to validate they are recorded")
 	}
-	for _, m := range metrics {
-		if strings.HasPrefix(m.GetName(), "authenticator_ack_authenticate_latency_seconds") {
+	for _, m := range metricFamilies {
+		if strings.HasPrefix(m.GetName(), "aws_iam_authenticator_authenticate_latency_seconds") {
 			var actualSuccess, actualMalformed, actualInvalid, actualUnknown, actualSTSError uint64
 			for _, metric := range m.GetMetric() {
 				if len(metric.Label) != 1 {
@@ -99,26 +128,26 @@ func validateMetrics(t *testing.T, opts validateOpts) {
 					t.Fatalf("Expected label to have name 'result' was %s", *label.Name)
 				}
 				switch *label.Value {
-				case metricSuccess:
+				case metrics.Success:
 					actualSuccess = metric.GetHistogram().GetSampleCount()
-				case metricMalformed:
+				case metrics.Malformed:
 					actualMalformed = metric.GetHistogram().GetSampleCount()
-				case metricInvalid:
+				case metrics.Invalid:
 					actualInvalid = metric.GetHistogram().GetSampleCount()
-				case metricUnknown:
+				case metrics.Unknown:
 					actualUnknown = metric.GetHistogram().GetSampleCount()
-				case metricSTSError:
+				case metrics.STSError:
 					actualSTSError = metric.GetHistogram().GetSampleCount()
 				default:
 					t.Errorf("Unknown result for latency label: %s", *label.Value)
 
 				}
 			}
-			checkHistogramSampleCount(t, metricSuccess, actualSuccess, opts.success)
-			checkHistogramSampleCount(t, metricMalformed, actualMalformed, opts.malformed)
-			checkHistogramSampleCount(t, metricInvalid, actualInvalid, opts.invalidToken)
-			checkHistogramSampleCount(t, metricUnknown, actualUnknown, opts.unknownUser)
-			checkHistogramSampleCount(t, metricSTSError, actualSTSError, opts.stsError)
+			checkHistogramSampleCount(t, metrics.Success, actualSuccess, opts.success)
+			checkHistogramSampleCount(t, metrics.Malformed, actualMalformed, opts.malformed)
+			checkHistogramSampleCount(t, metrics.Invalid, actualInvalid, opts.invalidToken)
+			checkHistogramSampleCount(t, metrics.Unknown, actualUnknown, opts.unknownUser)
+			checkHistogramSampleCount(t, metrics.STSError, actualSTSError, opts.stsError)
 		}
 	}
 }
@@ -127,7 +156,18 @@ func TestAuthenticateNonPostError(t *testing.T) {
 	resp := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "http://k8s.io/authenticate", nil)
 	h := setup(nil)
-	defer cleanup(h.metrics)
+	h.authenticateEndpoint(resp, req)
+	if resp.Code != http.StatusMethodNotAllowed {
+		t.Errorf("Expected status code %d, was %d", http.StatusMethodNotAllowed, resp.Code)
+	}
+	verifyBodyContains(t, resp, "expected POST")
+	validateMetrics(t, validateOpts{malformed: 1})
+}
+
+func TestAuthenticateNonPostErrorCRD(t *testing.T) {
+	resp := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "http://k8s.io/authenticate", nil)
+	h := setup(nil)
 	h.authenticateEndpoint(resp, req)
 	if resp.Code != http.StatusMethodNotAllowed {
 		t.Errorf("Expected status code %d, was %d", http.StatusMethodNotAllowed, resp.Code)
@@ -140,7 +180,18 @@ func TestAuthenticateEmptyBody(t *testing.T) {
 	resp := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", nil)
 	h := setup(nil)
-	defer cleanup(h.metrics)
+	h.authenticateEndpoint(resp, req)
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status code %d, was %d", http.StatusBadRequest, resp.Code)
+	}
+	verifyBodyContains(t, resp, "expected a request body")
+	validateMetrics(t, validateOpts{malformed: 1})
+}
+
+func TestAuthenticateEmptyBodyCRD(t *testing.T) {
+	resp := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", nil)
+	h := setup(nil)
 	h.authenticateEndpoint(resp, req)
 	if resp.Code != http.StatusBadRequest {
 		t.Errorf("Expected status code %d, was %d", http.StatusBadRequest, resp.Code)
@@ -153,13 +204,54 @@ func TestAuthenticateUnableToDecodeBody(t *testing.T) {
 	resp := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", strings.NewReader("not valid json"))
 	h := setup(nil)
-	defer cleanup(h.metrics)
 	h.authenticateEndpoint(resp, req)
 	if resp.Code != http.StatusBadRequest {
 		t.Errorf("Expected status code %d, was %d", http.StatusBadRequest, resp.Code)
 	}
 	verifyBodyContains(t, resp, "expected a request body to be a TokenReview")
 	validateMetrics(t, validateOpts{malformed: 1})
+}
+
+func TestAuthenticateUnableToDecodeBodyCRD(t *testing.T) {
+	resp := httptest.NewRecorder()
+	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", strings.NewReader("not valid json"))
+	h := setup(nil)
+	h.authenticateEndpoint(resp, req)
+	if resp.Code != http.StatusBadRequest {
+		t.Errorf("Expected status code %d, was %d", http.StatusBadRequest, resp.Code)
+	}
+	verifyBodyContains(t, resp, "expected a request body to be a TokenReview")
+	validateMetrics(t, validateOpts{malformed: 1})
+}
+
+func testIsLoggableIdentity(t *testing.T) {
+	h := &handler{scrubbedAccounts: []string{"111122223333", "012345678901"}}
+
+	cases := []struct {
+		identity *token.Identity
+		want     bool
+	}{
+		{
+			&token.Identity{AccountID: "222233334444"},
+			true,
+		},
+		{
+			&token.Identity{AccountID: "111122223333"},
+			false,
+		},
+	}
+
+	for _, c := range cases {
+		if got := h.isLoggableIdentity(c.identity); got != c.want {
+			t.Errorf(
+				"Unexpected result: isLoggableIdentity(%v): got: %t, wanted %t",
+				c.identity,
+				got,
+				c.want,
+			)
+		}
+	}
+
 }
 
 type testVerifier struct {
@@ -186,7 +278,27 @@ func TestAuthenticateVerifierError(t *testing.T) {
 	}
 	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", bytes.NewReader(data))
 	h := setup(&testVerifier{err: errors.New("There was an error")})
-	defer cleanup(h.metrics)
+	h.authenticateEndpoint(resp, req)
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status code %d, was %d", http.StatusForbidden, resp.Code)
+	}
+	verifyBodyContains(t, resp, string(tokenReviewDenyJSON))
+	validateMetrics(t, validateOpts{invalidToken: 1})
+}
+
+func TestAuthenticateVerifierErrorCRD(t *testing.T) {
+	resp := httptest.NewRecorder()
+
+	data, err := json.Marshal(authenticationv1beta1.TokenReview{
+		Spec: authenticationv1beta1.TokenReviewSpec{
+			Token: "token",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Could not marshal in put data: %v", err)
+	}
+	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", bytes.NewReader(data))
+	h := setup(&testVerifier{err: errors.New("There was an error")})
 	h.authenticateEndpoint(resp, req)
 	if resp.Code != http.StatusForbidden {
 		t.Errorf("Expected status code %d, was %d", http.StatusForbidden, resp.Code)
@@ -208,7 +320,27 @@ func TestAuthenticateVerifierSTSError(t *testing.T) {
 	}
 	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", bytes.NewReader(data))
 	h := setup(&testVerifier{err: token.NewSTSError("There was an error")})
-	defer cleanup(h.metrics)
+	h.authenticateEndpoint(resp, req)
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status code %d, was %d", http.StatusForbidden, resp.Code)
+	}
+	verifyBodyContains(t, resp, string(tokenReviewDenyJSON))
+	validateMetrics(t, validateOpts{stsError: 1})
+}
+
+func TestAuthenticateVerifierSTSErrorCRD(t *testing.T) {
+	resp := httptest.NewRecorder()
+
+	data, err := json.Marshal(authenticationv1beta1.TokenReview{
+		Spec: authenticationv1beta1.TokenReviewSpec{
+			Token: "token",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Could not marshal in put data: %v", err)
+	}
+	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", bytes.NewReader(data))
+	h := setup(&testVerifier{err: token.NewSTSError("There was an error")})
 	h.authenticateEndpoint(resp, req)
 	if resp.Code != http.StatusForbidden {
 		t.Errorf("Expected status code %d, was %d", http.StatusForbidden, resp.Code)
@@ -236,7 +368,33 @@ func TestAuthenticateVerifierNotMapped(t *testing.T) {
 		UserID:       "",
 		SessionName:  "",
 	}})
-	defer cleanup(h.metrics)
+	h.authenticateEndpoint(resp, req)
+	if resp.Code != http.StatusForbidden {
+		t.Errorf("Expected status code %d, was %d", http.StatusForbidden, resp.Code)
+	}
+	verifyBodyContains(t, resp, string(tokenReviewDenyJSON))
+	validateMetrics(t, validateOpts{unknownUser: 1})
+}
+
+func TestAuthenticateVerifierNotMappedCRD(t *testing.T) {
+	resp := httptest.NewRecorder()
+
+	data, err := json.Marshal(authenticationv1beta1.TokenReview{
+		Spec: authenticationv1beta1.TokenReviewSpec{
+			Token: "token",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Could not marshal in put data: %v", err)
+	}
+	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", bytes.NewReader(data))
+	h := setup(&testVerifier{err: nil, identity: &token.Identity{
+		ARN:          "",
+		CanonicalARN: "",
+		AccountID:    "",
+		UserID:       "",
+		SessionName:  "",
+	}})
 	h.authenticateEndpoint(resp, req)
 	if resp.Code != http.StatusForbidden {
 		t.Errorf("Expected status code %d, was %d", http.StatusForbidden, resp.Code)
@@ -257,25 +415,74 @@ func TestAuthenticateVerifierRoleMapping(t *testing.T) {
 		t.Fatalf("Could not marshal in put data: %v", err)
 	}
 	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", bytes.NewReader(data))
-	h := setup(&testVerifier{err: nil, identity: &token.Identity{
-		ARN:          "acs:ram::0123456789012:role/Test",
-		CanonicalARN: "acs:ram::0123456789012:role/Test",
+	identity := &token.Identity{
+		ARN:          "arn:aws:iam::0123456789012:role/Test",
+		CanonicalARN: "arn:aws:iam::0123456789012:role/Test",
 		AccountID:    "0123456789012",
 		UserID:       "Test",
-		SessionName:  "",
-	}})
-	defer cleanup(h.metrics)
-	h.lowercaseRoleMap = make(map[string]config.RoleMapping)
-	h.lowercaseRoleMap["acs:ram::0123456789012:role/test"] = config.RoleMapping{
-		RoleARN:  "acs:ram::0123456789012:role/Test",
-		Username: "TestUser",
-		Groups:   []string{"sys:admin", "listers"},
+		SessionName:  "TestSession",
 	}
+	h := setup(&testVerifier{err: nil, identity: identity})
+	h.mappers = []mapper.Mapper{file.NewFileMapperWithMaps(map[string]config.RoleMapping{
+		"arn:aws:iam::0123456789012:role/test": config.RoleMapping{
+			RoleARN:  "arn:aws:iam::0123456789012:role/Test",
+			Username: "TestUser",
+			Groups:   []string{"sys:admin", "listers"},
+		},
+	}, nil, nil)}
 	h.authenticateEndpoint(resp, req)
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status code %d, was %d", http.StatusOK, resp.Code)
 	}
-	verifyAuthResult(t, resp, tokenReview("TestUser", "ack-ram-authenticator:0123456789012:Test", []string{"sys:admin", "listers"}))
+	verifyAuthResult(t, resp, tokenReview(
+		"TestUser",
+		"aws-iam-authenticator:0123456789012:Test",
+		[]string{"sys:admin", "listers"},
+		map[string]authenticationv1beta1.ExtraValue{
+			"arn":          authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:role/Test"},
+			"canonicalArn": authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:role/Test"},
+			"sessionName":  authenticationv1beta1.ExtraValue{"TestSession"},
+			"accessKeyId":  authenticationv1beta1.ExtraValue{"ABCDEF"},
+		}))
+	validateMetrics(t, validateOpts{success: 1})
+}
+
+func TestAuthenticateVerifierRoleMappingCRD(t *testing.T) {
+	resp := httptest.NewRecorder()
+
+	data, err := json.Marshal(authenticationv1beta1.TokenReview{
+		Spec: authenticationv1beta1.TokenReviewSpec{
+			Token: "token",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Could not marshal in put data: %v", err)
+	}
+	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", bytes.NewReader(data))
+	h := setup(&testVerifier{err: nil, identity: &token.Identity{
+		ARN:          "arn:aws:iam::0123456789012:role/Test",
+		CanonicalARN: "arn:aws:iam::0123456789012:role/Test",
+		AccountID:    "0123456789012",
+		UserID:       "Test",
+		SessionName:  "TestSession",
+	}})
+	indexer := createIndexer()
+	indexer.Add(newIAMIdentityMapping("arn:aws:iam::0123456789012:role/Test", "arn:aws:iam::0123456789012:role/test", "TestUser", []string{"sys:admin", "listers"}))
+	h.mappers = []mapper.Mapper{crd.NewCRDMapperWithIndexer(indexer)}
+	h.authenticateEndpoint(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status code %d, was %d", http.StatusOK, resp.Code)
+	}
+	verifyAuthResult(t, resp, tokenReview(
+		"TestUser",
+		"aws-iam-authenticator:0123456789012:Test",
+		[]string{"sys:admin", "listers"},
+		map[string]authenticationv1beta1.ExtraValue{
+			"arn":          authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:role/Test"},
+			"canonicalArn": authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:role/Test"},
+			"sessionName":  authenticationv1beta1.ExtraValue{"TestSession"},
+			"accessKeyId":  authenticationv1beta1.ExtraValue{""},
+		}))
 	validateMetrics(t, validateOpts{success: 1})
 }
 
@@ -292,24 +499,72 @@ func TestAuthenticateVerifierUserMapping(t *testing.T) {
 	}
 	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", bytes.NewReader(data))
 	h := setup(&testVerifier{err: nil, identity: &token.Identity{
-		ARN:          "acs:ram::0123456789012:user/Test",
-		CanonicalARN: "acs:ram::0123456789012:user/Test",
+		ARN:          "arn:aws:iam::0123456789012:user/Test",
+		CanonicalARN: "arn:aws:iam::0123456789012:user/Test",
 		AccountID:    "0123456789012",
 		UserID:       "Test",
-		SessionName:  "",
+		SessionName:  "TestSession",
 	}})
-	defer cleanup(h.metrics)
-	h.lowercaseUserMap = make(map[string]config.UserMapping)
-	h.lowercaseUserMap["acs:ram::0123456789012:user/test"] = config.UserMapping{
-		UserARN:  "acs:ram::0123456789012:user/Test",
-		Username: "TestUser",
-		Groups:   []string{"sys:admin", "listers"},
-	}
+	h.mappers = []mapper.Mapper{file.NewFileMapperWithMaps(nil, map[string]config.UserMapping{
+		"arn:aws:iam::0123456789012:user/test": config.UserMapping{
+			UserARN:  "arn:aws:iam::0123456789012:user/Test",
+			Username: "TestUser",
+			Groups:   []string{"sys:admin", "listers"},
+		},
+	}, nil)}
 	h.authenticateEndpoint(resp, req)
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status code %d, was %d", http.StatusOK, resp.Code)
 	}
-	verifyAuthResult(t, resp, tokenReview("TestUser", "ack-ram-authenticator:0123456789012:Test", []string{"sys:admin", "listers"}))
+	verifyAuthResult(t, resp, tokenReview(
+		"TestUser",
+		"aws-iam-authenticator:0123456789012:Test",
+		[]string{"sys:admin", "listers"},
+		map[string]authenticationv1beta1.ExtraValue{
+			"arn":          authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:user/Test"},
+			"canonicalArn": authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:user/Test"},
+			"sessionName":  authenticationv1beta1.ExtraValue{"TestSession"},
+			"accessKeyId":  authenticationv1beta1.ExtraValue{""},
+		}))
+	validateMetrics(t, validateOpts{success: 1})
+}
+
+func TestAuthenticateVerifierUserMappingCRD(t *testing.T) {
+	resp := httptest.NewRecorder()
+
+	data, err := json.Marshal(authenticationv1beta1.TokenReview{
+		Spec: authenticationv1beta1.TokenReviewSpec{
+			Token: "token",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Could not marshal in put data: %v", err)
+	}
+	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", bytes.NewReader(data))
+	h := setup(&testVerifier{err: nil, identity: &token.Identity{
+		ARN:          "arn:aws:iam::0123456789012:user/Test",
+		CanonicalARN: "arn:aws:iam::0123456789012:user/Test",
+		AccountID:    "0123456789012",
+		UserID:       "Test",
+		SessionName:  "TestSession",
+	}})
+	indexer := createIndexer()
+	indexer.Add(newIAMIdentityMapping("arn:aws:iam::0123456789012:user/Test", "arn:aws:iam::0123456789012:user/test", "TestUser", []string{"sys:admin", "listers"}))
+	h.mappers = []mapper.Mapper{crd.NewCRDMapperWithIndexer(indexer)}
+	h.authenticateEndpoint(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status code %d, was %d", http.StatusOK, resp.Code)
+	}
+	verifyAuthResult(t, resp, tokenReview(
+		"TestUser",
+		"aws-iam-authenticator:0123456789012:Test",
+		[]string{"sys:admin", "listers"},
+		map[string]authenticationv1beta1.ExtraValue{
+			"arn":          authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:user/Test"},
+			"canonicalArn": authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:user/Test"},
+			"sessionName":  authenticationv1beta1.ExtraValue{"TestSession"},
+			"accessKeyId":  authenticationv1beta1.ExtraValue{""},
+		}))
 	validateMetrics(t, validateOpts{success: 1})
 }
 
@@ -326,20 +581,68 @@ func TestAuthenticateVerifierAccountMappingForUser(t *testing.T) {
 	}
 	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", bytes.NewReader(data))
 	h := setup(&testVerifier{err: nil, identity: &token.Identity{
-		ARN:          "acs:ram::0123456789012:user/Test",
-		CanonicalARN: "acs:ram::0123456789012:user/Test",
+		ARN:          "arn:aws:iam::0123456789012:user/Test",
+		CanonicalARN: "arn:aws:iam::0123456789012:user/Test",
 		AccountID:    "0123456789012",
 		UserID:       "Test",
-		SessionName:  "",
+		SessionName:  "TestSession",
 	}})
-	defer cleanup(h.metrics)
-	h.accountMap = make(map[string]bool)
-	h.accountMap["0123456789012"] = true
+	h.mappers = []mapper.Mapper{file.NewFileMapperWithMaps(nil, nil, map[string]bool{
+		"0123456789012": true,
+	})}
 	h.authenticateEndpoint(resp, req)
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status code %d, was %d", http.StatusOK, resp.Code)
 	}
-	verifyAuthResult(t, resp, tokenReview("acs:ram::0123456789012:user/Test", "ack-ram-authenticator:0123456789012:Test", nil))
+	verifyAuthResult(t, resp, tokenReview(
+		"arn:aws:iam::0123456789012:user/Test",
+		"aws-iam-authenticator:0123456789012:Test",
+		nil,
+		map[string]authenticationv1beta1.ExtraValue{
+			"arn":          authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:user/Test"},
+			"canonicalArn": authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:user/Test"},
+			"sessionName":  authenticationv1beta1.ExtraValue{"TestSession"},
+			"accessKeyId":  authenticationv1beta1.ExtraValue{""},
+		}))
+	validateMetrics(t, validateOpts{success: 1})
+}
+
+func TestAuthenticateVerifierAccountMappingForUserCRD(t *testing.T) {
+	resp := httptest.NewRecorder()
+
+	data, err := json.Marshal(authenticationv1beta1.TokenReview{
+		Spec: authenticationv1beta1.TokenReviewSpec{
+			Token: "token",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Could not marshal in put data: %v", err)
+	}
+	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", bytes.NewReader(data))
+	h := setup(&testVerifier{err: nil, identity: &token.Identity{
+		ARN:          "arn:aws:iam::0123456789012:user/Test",
+		CanonicalARN: "arn:aws:iam::0123456789012:user/Test",
+		AccountID:    "0123456789012",
+		UserID:       "Test",
+		SessionName:  "TestSession",
+	}})
+	h.mappers = []mapper.Mapper{crd.NewCRDMapperWithIndexer(createIndexer()), file.NewFileMapperWithMaps(nil, nil, map[string]bool{
+		"0123456789012": true,
+	})}
+	h.authenticateEndpoint(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status code %d, was %d", http.StatusOK, resp.Code)
+	}
+	verifyAuthResult(t, resp, tokenReview(
+		"arn:aws:iam::0123456789012:user/Test",
+		"aws-iam-authenticator:0123456789012:Test",
+		nil,
+		map[string]authenticationv1beta1.ExtraValue{
+			"arn":          authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:user/Test"},
+			"canonicalArn": authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:user/Test"},
+			"sessionName":  authenticationv1beta1.ExtraValue{"TestSession"},
+			"accessKeyId":  authenticationv1beta1.ExtraValue{""},
+		}))
 	validateMetrics(t, validateOpts{success: 1})
 }
 
@@ -356,19 +659,240 @@ func TestAuthenticateVerifierAccountMappingForRole(t *testing.T) {
 	}
 	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", bytes.NewReader(data))
 	h := setup(&testVerifier{err: nil, identity: &token.Identity{
-		ARN:          "acs:ram::0123456789012:assumed-role/Test/extra",
-		CanonicalARN: "acs:ram::0123456789012:role/Test",
+		ARN:          "arn:aws:iam::0123456789012:assumed-role/Test/extra",
+		CanonicalARN: "arn:aws:iam::0123456789012:role/Test",
 		AccountID:    "0123456789012",
 		UserID:       "Test",
-		SessionName:  "",
+		SessionName:  "TestSession",
 	}})
-	defer cleanup(h.metrics)
-	h.accountMap = make(map[string]bool)
-	h.accountMap["0123456789012"] = true
+	h.mappers = []mapper.Mapper{file.NewFileMapperWithMaps(nil, nil, map[string]bool{
+		"0123456789012": true,
+	})}
 	h.authenticateEndpoint(resp, req)
 	if resp.Code != http.StatusOK {
 		t.Errorf("Expected status code %d, was %d", http.StatusOK, resp.Code)
 	}
-	verifyAuthResult(t, resp, tokenReview("acs:ram::0123456789012:role/Test", "ack-ram-authenticator:0123456789012:Test", nil))
+	verifyAuthResult(t, resp, tokenReview(
+		"arn:aws:iam::0123456789012:role/Test",
+		"aws-iam-authenticator:0123456789012:Test",
+		nil,
+		map[string]authenticationv1beta1.ExtraValue{
+			"arn":          authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:assumed-role/Test/extra"},
+			"canonicalArn": authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:role/Test"},
+			"sessionName":  authenticationv1beta1.ExtraValue{"TestSession"},
+			"accessKeyId":  authenticationv1beta1.ExtraValue{""},
+		}))
 	validateMetrics(t, validateOpts{success: 1})
+}
+
+func TestAuthenticateVerifierAccountMappingForRoleCRD(t *testing.T) {
+	resp := httptest.NewRecorder()
+
+	data, err := json.Marshal(authenticationv1beta1.TokenReview{
+		Spec: authenticationv1beta1.TokenReviewSpec{
+			Token: "token",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Could not marshal in put data: %v", err)
+	}
+	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", bytes.NewReader(data))
+	h := setup(&testVerifier{err: nil, identity: &token.Identity{
+		ARN:          "arn:aws:iam::0123456789012:assumed-role/Test/extra",
+		CanonicalARN: "arn:aws:iam::0123456789012:role/Test",
+		AccountID:    "0123456789012",
+		UserID:       "Test",
+		SessionName:  "TestSession",
+	}})
+	h.mappers = []mapper.Mapper{crd.NewCRDMapperWithIndexer(createIndexer()), file.NewFileMapperWithMaps(nil, nil, map[string]bool{
+		"0123456789012": true,
+	})}
+	h.authenticateEndpoint(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status code %d, was %d", http.StatusOK, resp.Code)
+	}
+	verifyAuthResult(t, resp, tokenReview(
+		"arn:aws:iam::0123456789012:role/Test",
+		"aws-iam-authenticator:0123456789012:Test",
+		nil,
+		map[string]authenticationv1beta1.ExtraValue{
+			"arn":          authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:assumed-role/Test/extra"},
+			"canonicalArn": authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:role/Test"},
+			"sessionName":  authenticationv1beta1.ExtraValue{"TestSession"},
+			"accessKeyId":  authenticationv1beta1.ExtraValue{""},
+		}))
+	validateMetrics(t, validateOpts{success: 1})
+}
+
+func TestAuthenticateVerifierNodeMapping(t *testing.T) {
+	resp := httptest.NewRecorder()
+
+	data, err := json.Marshal(authenticationv1beta1.TokenReview{
+		Spec: authenticationv1beta1.TokenReviewSpec{
+			Token: "token",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Could not marshal in put data: %v", err)
+	}
+	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", bytes.NewReader(data))
+	h := setup(&testVerifier{err: nil, identity: &token.Identity{
+		ARN:          "arn:aws:iam::0123456789012:role/TestNodeRole",
+		CanonicalARN: "arn:aws:iam::0123456789012:role/TestNodeRole",
+		AccountID:    "0123456789012",
+		UserID:       "TestNodeRole",
+		SessionName:  "i-0c6f21bf1f24f9708",
+	}})
+	h.ec2Provider = newTestEC2Provider("ip-172-31-27-14", 15, 5)
+	h.mappers = []mapper.Mapper{file.NewFileMapperWithMaps(map[string]config.RoleMapping{
+		"arn:aws:iam::0123456789012:role/testnoderole": config.RoleMapping{
+			RoleARN:  "arn:aws:iam::0123456789012:role/TestNodeRole",
+			Username: "system:node:{{ECSPrivateDNSName}}",
+			Groups:   []string{"system:nodes", "system:bootstrappers"},
+		},
+	}, nil, nil)}
+	h.authenticateEndpoint(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status code %d, was %d", http.StatusOK, resp.Code)
+	}
+	verifyAuthResult(t, resp, tokenReview(
+		"system:node:ip-172-31-27-14",
+		"aws-iam-authenticator:0123456789012:TestNodeRole",
+		[]string{"system:nodes", "system:bootstrappers"},
+		map[string]authenticationv1beta1.ExtraValue{
+			"arn":          authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:role/TestNodeRole"},
+			"canonicalArn": authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:role/TestNodeRole"},
+			"sessionName":  authenticationv1beta1.ExtraValue{"i-0c6f21bf1f24f9708"},
+			"accessKeyId":  authenticationv1beta1.ExtraValue{""},
+		}))
+	validateMetrics(t, validateOpts{success: 1})
+
+}
+
+func TestAuthenticateVerifierNodeMappingCRD(t *testing.T) {
+	resp := httptest.NewRecorder()
+
+	data, err := json.Marshal(authenticationv1beta1.TokenReview{
+		Spec: authenticationv1beta1.TokenReviewSpec{
+			Token: "token",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Could not marshal in put data: %v", err)
+	}
+	req := httptest.NewRequest("POST", "http://k8s.io/authenticate", bytes.NewReader(data))
+	h := setup(&testVerifier{err: nil, identity: &token.Identity{
+		ARN:          "arn:aws:iam::0123456789012:role/TestNodeRole",
+		CanonicalARN: "arn:aws:iam::0123456789012:role/TestNodeRole",
+		AccountID:    "0123456789012",
+		UserID:       "TestNodeRole",
+		SessionName:  "i-0c6f21bf1f24f9708",
+	}})
+	h.ec2Provider = newTestEC2Provider("ip-172-31-27-14", 15, 5)
+	indexer := createIndexer()
+	indexer.Add(newIAMIdentityMapping("arn:aws:iam::0123456789012:role/TestNodeRole", "arn:aws:iam::0123456789012:role/testnoderole", "system:node:{{ECSPrivateDNSName}}", []string{"system:nodes", "system:bootstrappers"}))
+	h.mappers = []mapper.Mapper{crd.NewCRDMapperWithIndexer(indexer)}
+	h.authenticateEndpoint(resp, req)
+	if resp.Code != http.StatusOK {
+		t.Errorf("Expected status code %d, was %d", http.StatusOK, resp.Code)
+	}
+	verifyAuthResult(t, resp, tokenReview(
+		"system:node:ip-172-31-27-14",
+		"aws-iam-authenticator:0123456789012:TestNodeRole",
+		[]string{"system:nodes", "system:bootstrappers"},
+		map[string]authenticationv1beta1.ExtraValue{
+			"arn":          authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:role/TestNodeRole"},
+			"canonicalArn": authenticationv1beta1.ExtraValue{"arn:aws:iam::0123456789012:role/TestNodeRole"},
+			"sessionName":  authenticationv1beta1.ExtraValue{"i-0c6f21bf1f24f9708"},
+			"accessKeyId":  authenticationv1beta1.ExtraValue{""},
+		}))
+	validateMetrics(t, validateOpts{success: 1})
+
+}
+
+func TestRenderTemplate(t *testing.T) {
+	h := &handler{}
+	h.ec2Provider = newTestEC2Provider("ip-172-31-27-14", 15, 5)
+	cases := []struct {
+		template string
+		want     string
+		identity token.Identity
+		err      bool
+	}{
+		{
+			template: "a-{{ECSPrivateDNSName}}-b",
+			want:     "a-ip-172-31-27-14-b",
+			identity: token.Identity{
+				SessionName: "i-aaaaaaaa",
+			},
+		},
+		{
+			template: "a-{{ECSPrivateDNSName}}-b",
+			want:     "a-ip-172-31-27-14-b",
+			identity: token.Identity{
+				SessionName: "i-aaaaa",
+			},
+			err: true,
+		},
+		{
+			template: "a-{{AccountID}}-b",
+			want:     "a-123-b",
+			identity: token.Identity{
+				AccountID: "123",
+			},
+		},
+		{
+			template: "a-{{AccessKeyID}}-b",
+			want:     "a-321-b",
+			identity: token.Identity{
+				AccessKeyID: "321",
+			},
+		},
+		{
+			template: "a-{{SessionName}}-b",
+			want:     "a-jdoe-b",
+			identity: token.Identity{
+				SessionName: "jdoe",
+			},
+		},
+		{
+			template: "a-{{SessionName}}-b",
+			want:     "a-jdoe-example.com-b",
+			identity: token.Identity{
+				SessionName: "jdoe@example.com",
+			},
+		},
+		{
+			template: "a-{{SessionNameRaw}}-b",
+			want:     "a-jdoe@example.com-b",
+			identity: token.Identity{
+				SessionName: "jdoe@example.com",
+			},
+		},
+		{
+			template: "a-{{AccountID}}-{{SessionName}}-{{SessionNameRaw}}-b",
+			want:     "a-123-jdoe-example.com-jdoe@example.com-b",
+			identity: token.Identity{
+				AccountID:   "123",
+				SessionName: "jdoe@example.com",
+			},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.template, func(t *testing.T) {
+			got, err := h.renderTemplate(c.template, &c.identity)
+			if err != nil {
+				if c.err {
+					return
+				}
+				t.Errorf("unexpected error: %s", err.Error())
+			} else if c.err {
+				t.Errorf("expected error")
+			}
+			if got != c.want {
+				t.Errorf("want: %v, got: %v", c.want, got)
+			}
+
+		})
+	}
 }

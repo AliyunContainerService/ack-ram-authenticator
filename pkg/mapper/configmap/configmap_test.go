@@ -9,10 +9,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
 	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/kubernetes/typed/core/v1/fake"
 	k8stesting "k8s.io/client-go/testing"
-	"sigs.k8s.io/aws-iam-authenticator/pkg/config"
 )
 
 func init() {
@@ -264,7 +264,7 @@ func TestLoadConfigMap(t *testing.T) {
 func TestParseMap(t *testing.T) {
 	m1 := map[string]string{
 		"mapRoles": `- rolearn: arn:aws:iam::123456789101:role/test-NodeInstanceRole-1VWRHZ3GKZ1T4
-  username: system:node:{{EC2PrivateDNSName}}
+  username: system:node:{{ECSPrivateDNSName}}
   groups:
   - system:bootstrappers
   - system:nodes
@@ -293,17 +293,8 @@ func TestParseMap(t *testing.T) {
 	roleMappings := []config.RoleMapping{
 		{
 			RoleARN:  "arn:aws:iam::123456789101:role/test-NodeInstanceRole-1VWRHZ3GKZ1T4",
-			Username: "system:node:{{EC2PrivateDNSName}}",
+			Username: "system:node:{{ECSPrivateDNSName}}",
 			Groups:   []string{"system:bootstrappers", "system:nodes"},
-		},
-		{
-			SSO: &config.SSOARNMatcher{
-				PermissionSetName: "ViewOnlyAccess",
-				AccountID:         "012345678912",
-				Partition:         "aws-cn",
-			},
-			Username: "user1",
-			Groups:   []string{"system:basic-users"},
 		},
 	}
 	accounts := []string{}

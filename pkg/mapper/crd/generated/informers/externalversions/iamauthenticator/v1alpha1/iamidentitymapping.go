@@ -31,9 +31,9 @@ import (
 	v1alpha1 "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/listers/iamauthenticator/v1alpha1"
 )
 
-// IAMIdentityMappingInformer provides access to a shared informer and lister for
+// RAMIdentityMappingInformer provides access to a shared informer and lister for
 // IAMIdentityMappings.
-type IAMIdentityMappingInformer interface {
+type RAMIdentityMappingInformer interface {
 	Informer() cache.SharedIndexInformer
 	Lister() v1alpha1.IAMIdentityMappingLister
 }
@@ -43,17 +43,17 @@ type iAMIdentityMappingInformer struct {
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 }
 
-// NewIAMIdentityMappingInformer constructs a new informer for IAMIdentityMapping type.
+// NewRAMIdentityMappingInformer constructs a new informer for IAMIdentityMapping type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewIAMIdentityMappingInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredIAMIdentityMappingInformer(client, resyncPeriod, indexers, nil)
+func NewRAMIdentityMappingInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredRAMIdentityMappingInformer(client, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredIAMIdentityMappingInformer constructs a new informer for IAMIdentityMapping type.
+// NewFilteredRAMIdentityMappingInformer constructs a new informer for IAMIdentityMapping type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredIAMIdentityMappingInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredRAMIdentityMappingInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
@@ -76,7 +76,7 @@ func NewFilteredIAMIdentityMappingInformer(client versioned.Interface, resyncPer
 }
 
 func (f *iAMIdentityMappingInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredIAMIdentityMappingInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+	return NewFilteredRAMIdentityMappingInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
 func (f *iAMIdentityMappingInformer) Informer() cache.SharedIndexInformer {

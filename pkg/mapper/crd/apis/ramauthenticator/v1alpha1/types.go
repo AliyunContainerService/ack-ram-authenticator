@@ -24,24 +24,24 @@ import (
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// IAMIdentityMapping is a specification for a IAMIdentityMapping resource
-type IAMIdentityMapping struct {
+// RAMIdentityMapping is a specification for a RAMIdentityMapping resource
+type RAMIdentityMapping struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   IAMIdentityMappingSpec   `json:"spec"`
-	Status IAMIdentityMappingStatus `json:"status"`
+	Spec   RAMIdentityMappingSpec   `json:"spec"`
+	Status RAMIdentityMappingStatus `json:"status"`
 }
 
-// IAMIdentityMappingSpec is the spec for a IAMIdentityMapping resource
-type IAMIdentityMappingSpec struct {
+// RAMIdentityMappingSpec is the spec for a RAMIdentityMapping resource
+type RAMIdentityMappingSpec struct {
 	ARN      string   `json:"arn"`
 	Username string   `json:"username"`
 	Groups   []string `json:"groups"`
 }
 
-// IAMIdentityMappingStatus is the status for a IAMIdentityMapping resource
-type IAMIdentityMappingStatus struct {
+// RAMIdentityMappingStatus is the status for a RAMIdentityMapping resource
+type RAMIdentityMappingStatus struct {
 	CanonicalARN string `json:"canonicalARN"`
 	UserID       string `json:"userID"`
 }
@@ -49,10 +49,10 @@ type IAMIdentityMappingStatus struct {
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// IAMIdentityMappingList is a list of IAMIdentityMapping resources
-type IAMIdentityMappingList struct {
+// RAMIdentityMappingList is a list of RAMIdentityMapping resources
+type RAMIdentityMappingList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []IAMIdentityMapping `json:"items"`
+	Items []RAMIdentityMapping `json:"items"`
 }

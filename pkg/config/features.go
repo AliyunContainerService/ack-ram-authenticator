@@ -24,19 +24,11 @@ const (
 	// ConfiguredInitDirectories enables placing files directly in configured
 	// directories with init
 	ConfiguredInitDirectories featuregate.Feature = "ConfiguredInitDirectories"
-	// IAMIdentityMappingCRD enables using CRDs to manage allowed users
+	// RAMIdentityMappingCRD enables using CRDs to manage allowed users
 	RAMIdentityMappingCRD featuregate.Feature = "RAMIdentityMappingCRD"
-	// SSORoleMatch enables matching roles managed by AlibabaCloud SSO, with handling
-	// for their randomly generated suffixes
-	SSORoleMatch featuregate.Feature = "SSORoleMatch"
-)
-
-var (
-	SSORoleMatchEnabled bool
 )
 
 var DefaultFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	ConfiguredInitDirectories: {Default: false, PreRelease: featuregate.Alpha},
 	RAMIdentityMappingCRD:     {Default: false, PreRelease: featuregate.Alpha},
-	SSORoleMatch:              {Default: false, PreRelease: featuregate.Alpha},
 }

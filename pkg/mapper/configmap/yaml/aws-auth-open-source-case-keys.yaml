@@ -6,7 +6,7 @@ metadata:
 data:
   mapRoles: |
     - roleARN: arn:aws:iam::555555555555:role/devel-worker-nodes-NodeInstanceRole-74RF4UBDUKL6
-      username: system:node:{{EC2PrivateDNSName}}
+      username: system:node:{{ECSPrivateDNSName}}
       groups:
         - system:bootstrappers
         - system:nodes

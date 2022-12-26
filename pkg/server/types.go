@@ -17,11 +17,16 @@ limitations under the License.
 package server
 
 import (
+	"net"
+	"net/http"
+
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
 )
 
 // Server for the authentication webhook.
 type Server struct {
-	// Config is the whole configuration of ack-ram-authenticator used for valid keys and certs, kubeconfig, and so on
+	// Config is the whole configuration of aws-iam-authenticator used for valid keys and certs, kubeconfig, and so on
 	config.Config
+	httpServer http.Server
+	listener   net.Listener
 }

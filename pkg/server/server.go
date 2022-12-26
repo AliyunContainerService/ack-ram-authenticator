@@ -20,16 +20,21 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/configmap"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/dynamicfile"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/file"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/metrics"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
-	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/arn"
-	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/token"
-
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	authenticationv1beta1 "k8s.io/api/authentication/v1beta1"
@@ -48,136 +53,179 @@ var tokenReviewDenyJSON = func() []byte {
 	return res
 }()
 
+// Pattern to match EC2 instance IDs
+var (
+	instanceIDPattern = regexp.MustCompile("^i-(\\w{8}|\\w{17})$")
+)
+
 // server state (internal)
 type handler struct {
 	http.ServeMux
-	lowercaseRoleMap map[string]config.RoleMapping
-	lowercaseUserMap map[string]config.UserMapping
-	accountMap       map[string]bool
 	verifier         token.Verifier
-	metrics          metrics
+	clusterID        string
+	mappers          []mapper.Mapper
+	scrubbedAccounts []string
 }
 
-// metrics are handles to the collectors for prometheus for the various metrics we are tracking.
-type metrics struct {
-	latency *prometheus.HistogramVec
-}
-
-// namespace for the heptio authenticators metrics
-const (
-	metricNS        = "authenticator_ack"
-	metricMalformed = "malformed_request"
-	metricInvalid   = "invalid_token"
-	metricSTSError  = "sts_error"
-	metricUnknown   = "uknown_user"
-	metricSuccess   = "success"
-)
-
-// New creates a new server from a config
-func New(config config.Config) *Server {
-	return &Server{
-		Config: config,
+// New authentication webhook server.
+func New(cfg config.Config, stopCh <-chan struct{}) *Server {
+	c := &Server{
+		Config: cfg,
 	}
-}
 
-// Run the authentication webhook server.
-func (c *Server) Run() {
+	mappers, err := BuildMapperChain(cfg)
+	if err != nil {
+		logrus.Fatalf("failed to build mapper chain: %v", err)
+	}
+
+	for _, m := range mappers {
+		logrus.Infof("starting mapper %q", m.Name())
+		if err := m.Start(stopCh); err != nil {
+			logrus.Fatalf("start mapper %q failed", m.Name())
+		}
+	}
+
 	for _, mapping := range c.RoleMappings {
-		logrus.WithFields(logrus.Fields{
-			"role":     mapping.RoleARN,
-			"username": mapping.Username,
-			"groups":   mapping.Groups,
-		}).Infof("mapping RAM role")
+		if mapping.RoleARN != "" {
+			logrus.WithFields(logrus.Fields{
+				"role":     mapping.RoleARN,
+				"username": mapping.Username,
+				"groups":   mapping.Groups,
+			}).Infof("mapping IAM role")
+		}
 	}
 	for _, mapping := range c.UserMappings {
 		logrus.WithFields(logrus.Fields{
 			"user":     mapping.UserARN,
 			"username": mapping.Username,
 			"groups":   mapping.Groups,
-		}).Infof("mapping RAM user")
+		}).Infof("mapping IAM user")
 	}
 
-	listenAddr := fmt.Sprintf("%s:%d", c.Address, c.HostPort)
-	listenURL := fmt.Sprintf("https://%s/authenticate", listenAddr)
+	for _, account := range c.AutoMappedAlibabaCloudAccounts {
+		logrus.WithField("accountID", account).Infof("mapping IAM Account")
+	}
 
-	cert, err := c.GetOrCreateCertificate()
+	cert, err := c.GetOrCreateX509KeyPair()
 	if err != nil {
 		logrus.WithError(err).Fatalf("could not load/generate a certificate")
 	}
 
 	if !c.KubeconfigPregenerated {
-		if err := c.CreateKubeconfig(); err != nil {
-			logrus.WithError(err).Fatalf("could not create kubeconfig")
+		if err := c.GenerateWebhookKubeconfig(); err != nil {
+			logrus.WithError(err).Fatalf("could not create webhook kubeconfig")
 		}
 	}
 
 	// start a TLS listener with our custom certs
-	listener, err := tls.Listen("tcp", listenAddr, &tls.Config{
+	listener, err := tls.Listen("tcp", c.ListenAddr(), &tls.Config{
 		MinVersion:   tls.VersionTLS12,
 		Certificates: []tls.Certificate{*cert},
 	})
 	if err != nil {
 		logrus.WithError(err).Fatal("could not open TLS listener")
 	}
-	defer listener.Close()
 
 	// create a logrus logger for HTTP error logs
 	errLog := logrus.WithField("http", "error").Writer()
 	defer errLog.Close()
 
-	logrus.Infof("listening on %s", listenURL)
+	logrus.Infof("listening on %s", listener.Addr())
 	logrus.Infof("reconfigure your apiserver with `--authentication-token-webhook-config-file=%s` to enable (assuming default hostPath mounts)", c.GenerateKubeconfigPath)
-	httpServer := http.Server{
+	c.httpServer = http.Server{
 		ErrorLog: log.New(errLog, "", 0),
-		Handler:  c.getHandler(),
+		Handler:  c.getHandler(mappers),
 	}
-	logrus.WithError(httpServer.Serve(listener)).Fatal("HTTP server exited")
+	c.listener = listener
+	return c
 }
 
-func (c *Server) getHandler() *handler {
+// Run will run the server closing the connection if there is a struct on the channel
+func (c *Server) Run(stopCh <-chan struct{}) {
+
+	defer c.listener.Close()
+
+	go func() {
+		http.ListenAndServe(":21363", &healthzHandler{})
+	}()
+	if err := c.httpServer.Serve(c.listener); err != nil {
+		logrus.WithError(err).Fatal("http server exited")
+	}
+}
+
+type healthzHandler struct{}
+
+func (m *healthzHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprintf(w, "ok")
+}
+func (c *Server) getHandler(mappers []mapper.Mapper) *handler {
+
 	h := &handler{
-		lowercaseRoleMap: make(map[string]config.RoleMapping),
-		lowercaseUserMap: make(map[string]config.UserMapping),
-		accountMap:       make(map[string]bool),
 		verifier:         token.NewVerifier(c.ClusterID),
-		metrics:          createMetrics(),
-	}
-	for _, m := range c.RoleMappings {
-		canonicalizedARN, err := arn.Canonicalize(strings.ToLower(m.RoleARN))
-		if err != nil {
-			logrus.Errorf("Error canonicalizing ARN: %v", err)
-			continue
-		}
-		h.lowercaseRoleMap[canonicalizedARN] = m
-	}
-	for _, m := range c.UserMappings {
-		canonicalizedARN, err := arn.Canonicalize(strings.ToLower(m.UserARN))
-		if err != nil {
-			logrus.Errorf("Error canonicalizing ARN: %v", err)
-			continue
-		}
-		h.lowercaseUserMap[canonicalizedARN] = m
+		clusterID:        c.ClusterID,
+		mappers:          mappers,
+		scrubbedAccounts: c.Config.ScrubbedAliyunAccounts,
 	}
 
 	h.HandleFunc("/authenticate", h.authenticateEndpoint)
 	h.Handle("/metrics", promhttp.Handler())
+	h.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "ok")
+	})
 	return h
 }
 
-func createMetrics() metrics {
-	m := metrics{
-		latency: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Namespace: metricNS,
-			Name:      "authenticate_latency_seconds",
-			Help:      "The latency for authenticate call",
-		}, []string{"result"}),
+func BuildMapperChain(cfg config.Config) ([]mapper.Mapper, error) {
+	modes := cfg.BackendMode
+	mappers := []mapper.Mapper{}
+	for _, mode := range modes {
+		switch mode {
+		case mapper.ModeFile:
+			fallthrough
+		case mapper.ModeMountedFile:
+			fileMapper, err := file.NewFileMapper(cfg)
+			if err != nil {
+				return nil, fmt.Errorf("backend-mode %q creation failed: %v", mode, err)
+			}
+			mappers = append(mappers, fileMapper)
+		case mapper.ModeConfigMap:
+			fallthrough
+		case mapper.ModeEKSConfigMap:
+			configMapMapper, err := configmap.NewConfigMapMapper(cfg)
+			if err != nil {
+				return nil, fmt.Errorf("backend-mode %q creation failed: %v", mode, err)
+			}
+			mappers = append(mappers, configMapMapper)
+		case mapper.ModeCRD:
+			crdMapper, err := crd.NewCRDMapper(cfg)
+			if err != nil {
+				return nil, fmt.Errorf("backend-mode %q creation failed: %v", mode, err)
+			}
+			mappers = append(mappers, crdMapper)
+		case mapper.ModeDynamicFile:
+			dynamicFileMapper, err := dynamicfile.NewDynamicFileMapper(cfg)
+			if err != nil {
+				return nil, fmt.Errorf("backend-mode %q creation failed: %v", mode, err)
+			}
+			mappers = append(mappers, dynamicFileMapper)
+		default:
+			return nil, fmt.Errorf("backend-mode %q is not a valid mode", mode)
+		}
 	}
-	prometheus.MustRegister(m.latency)
-	return m
+	return mappers, nil
 }
 
 func duration(start time.Time) float64 {
 	return time.Since(start).Seconds()
+}
+
+func (h *handler) isLoggableIdentity(identity *token.Identity) bool {
+	for _, account := range h.scrubbedAccounts {
+		if identity.AccountID == account {
+			return false
+		}
+	}
+	return true
 }
 
 func (h *handler) authenticateEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -191,13 +239,13 @@ func (h *handler) authenticateEndpoint(w http.ResponseWriter, req *http.Request)
 	if req.Method != http.MethodPost {
 		log.Error("unexpected request method")
 		http.Error(w, "expected POST", http.StatusMethodNotAllowed)
-		h.metrics.latency.WithLabelValues(metricMalformed).Observe(duration(start))
+		metrics.Get().Latency.WithLabelValues(metrics.Malformed).Observe(duration(start))
 		return
 	}
 	if req.Body == nil {
 		log.Error("empty request body")
 		http.Error(w, "expected a request body", http.StatusBadRequest)
-		h.metrics.latency.WithLabelValues(metricMalformed).Observe(duration(start))
+		metrics.Get().Latency.WithLabelValues(metrics.Malformed).Observe(duration(start))
 		return
 	}
 	defer req.Body.Close()
@@ -206,20 +254,20 @@ func (h *handler) authenticateEndpoint(w http.ResponseWriter, req *http.Request)
 	if err := json.NewDecoder(req.Body).Decode(&tokenReview); err != nil {
 		log.WithError(err).Error("could not parse request body")
 		http.Error(w, "expected a request body to be a TokenReview", http.StatusBadRequest)
-		h.metrics.latency.WithLabelValues(metricMalformed).Observe(duration(start))
+		metrics.Get().Latency.WithLabelValues(metrics.Malformed).Observe(duration(start))
 		return
 	}
 
+	// TODO: rate limit here
 	// all responses from here down have JSON bodies
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-
 	// if the token is invalid, reject with a 403
 	identity, err := h.verifier.Verify(tokenReview.Spec.Token)
 	if err != nil {
 		if _, ok := err.(token.STSError); ok {
-			h.metrics.latency.WithLabelValues(metricSTSError).Observe(duration(start))
+			metrics.Get().Latency.WithLabelValues(metrics.STSError).Observe(duration(start))
 		} else {
-			h.metrics.latency.WithLabelValues(metricInvalid).Observe(duration(start))
+			metrics.Get().Latency.WithLabelValues(metrics.Invalid).Observe(duration(start))
 		}
 		log.WithError(err).Warn("access denied")
 		w.WriteHeader(http.StatusForbidden)
@@ -227,28 +275,32 @@ func (h *handler) authenticateEndpoint(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	log.WithFields(logrus.Fields{
-		"arn":       identity.ARN,
-		"accountid": identity.AccountID,
-		"userid":    identity.UserID,
-		"session":   identity.SessionName,
-	}).Info("STS response")
+	if h.isLoggableIdentity(identity) {
+		log.WithFields(logrus.Fields{
+			"arn":       identity.ARN,
+			"accountid": identity.AccountID,
+			"userid":    identity.UserID,
+			"session":   identity.SessionName,
+		}).Info("STS response")
 
-	// look up the ARN in each of our mappings to fill in the username and groups
-	arnLower := strings.ToLower(identity.CanonicalARN)
-	log = log.WithField("arn", identity.CanonicalARN)
+		// look up the ARN in each of our mappings to fill in the username and groups
+		log = log.WithField("arn", identity.CanonicalARN)
+	}
 
-	username, groups, err := h.doMapping(identity, arnLower)
+	username, groups, err := h.doMapping(identity)
 	if err != nil {
-		h.metrics.latency.WithLabelValues(metricUnknown).Observe(duration(start))
+		metrics.Get().Latency.WithLabelValues(metrics.Unknown).Observe(duration(start))
 		log.WithError(err).Warn("access denied")
 		w.WriteHeader(http.StatusForbidden)
 		w.Write(tokenReviewDenyJSON)
 		return
 	}
 
-	// use a prefixed UID that includes the RAM account ID and RAM user ID ("AROAAAAAAAAAAAAAAAAAA")
-	uid := fmt.Sprintf("ack-ram-authenticator:%s:%s", identity.AccountID, identity.UserID)
+	uid := fmt.Sprintf("aws-iam-authenticator:administrative:%s", username)
+	if h.isLoggableIdentity(identity) {
+		// use a prefixed UID that includes the AWS account ID and AWS user ID ("AROAAAAAAAAAAAAAAAAAA")
+		uid = fmt.Sprintf("aws-iam-authenticator:%s:%s", identity.AccountID, identity.UserID)
+	}
 
 	// the token is valid and the role is mapped, return success!
 	log.WithFields(logrus.Fields{
@@ -256,8 +308,16 @@ func (h *handler) authenticateEndpoint(w http.ResponseWriter, req *http.Request)
 		"uid":      uid,
 		"groups":   groups,
 	}).Info("access granted")
-	h.metrics.latency.WithLabelValues(metricSuccess).Observe(duration(start))
+	metrics.Get().Latency.WithLabelValues(metrics.Success).Observe(duration(start))
 	w.WriteHeader(http.StatusOK)
+
+	userExtra := map[string]authenticationv1beta1.ExtraValue{}
+	if h.isLoggableIdentity(identity) {
+		userExtra["arn"] = authenticationv1beta1.ExtraValue{identity.ARN}
+		userExtra["canonicalArn"] = authenticationv1beta1.ExtraValue{identity.CanonicalARN}
+		userExtra["sessionName"] = authenticationv1beta1.ExtraValue{identity.SessionName}
+	}
+
 	json.NewEncoder(w).Encode(authenticationv1beta1.TokenReview{
 		Status: authenticationv1beta1.TokenReviewStatus{
 			Authenticated: true,
@@ -265,43 +325,41 @@ func (h *handler) authenticateEndpoint(w http.ResponseWriter, req *http.Request)
 				Username: username,
 				UID:      uid,
 				Groups:   groups,
+				Extra:    userExtra,
 			},
 		},
 	})
 }
 
-func (h *handler) doMapping(identity *token.Identity, arn string) (string, []string, error) {
-	if roleMapping, exists := h.lowercaseRoleMap[arn]; exists {
-		username, err := h.renderTemplate(roleMapping.Username, identity)
-		if err != nil {
-			return "", nil, fmt.Errorf("failed mapping username: %s", err.Error())
-		}
-		groups := []string{}
-		for _, groupPattern := range roleMapping.Groups {
-			group, err := h.renderTemplate(groupPattern, identity)
+func (h *handler) doMapping(identity *token.Identity) (string, []string, error) {
+	var errs []error
+
+	canonicalARN := strings.ToLower(identity.CanonicalARN)
+
+	for _, m := range h.mappers {
+		mapping, err := m.Map(canonicalARN)
+		if err == nil {
+			// Mapping found, try to render any templates like {{ECSPrivateDNSName}}
+			username, groups, err := h.renderTemplates(*mapping, identity)
 			if err != nil {
-				return "", nil, fmt.Errorf("failed mapping group: %s", err.Error())
+				return "", nil, fmt.Errorf("mapper %s renderTemplates error: %v", m.Name(), err)
 			}
-			groups = append(groups, group)
+			return username, groups, nil
+		} else {
+			if err != mapper.ErrNotMapped {
+				errs = append(errs, fmt.Errorf("mapper %s Map error: %v", m.Name(), err))
+			}
+
+			if m.IsAccountAllowed(identity.AccountID) {
+				return identity.CanonicalARN, []string{}, nil
+			}
 		}
-		return username, groups, nil
 	}
-	if userMapping, exists := h.lowercaseUserMap[arn]; exists {
-		return userMapping.Username, userMapping.Groups, nil
+
+	if len(errs) > 0 {
+		return "", nil, utilerrors.NewAggregate(errs)
 	}
-	if _, exists := h.accountMap[identity.AccountID]; exists {
-		return identity.CanonicalARN, []string{}, nil
-	}
-	return "", nil, fmt.Errorf("ARN is not mapped: %s", arn)
-}
-
-func (h *handler) renderTemplate(template string, identity *token.Identity) (string, error) {
-	template = strings.Replace(template, "{{AccountID}}", identity.AccountID, -1)
-
-	sessionName := strings.Replace(identity.SessionName, "@", "-", -1)
-	template = strings.Replace(template, "{{SessionName}}", sessionName, -1)
-
-	return template, nil
+	return "", nil, mapper.ErrNotMapped
 }
 
 func (h *handler) renderTemplates(mapping config.IdentityMapping, identity *token.Identity) (string, []string, error) {
@@ -328,7 +386,7 @@ func (h *handler) renderTemplates(mapping config.IdentityMapping, identity *toke
 
 func (h *handler) renderTemplate(template string, identity *token.Identity) (string, error) {
 	// Private DNS requires EC2 API call
-	if strings.Contains(template, "{{EC2PrivateDNSName}}") {
+	if strings.Contains(template, "{{ECSPrivateDNSName}}") {
 		if !instanceIDPattern.MatchString(identity.SessionName) {
 			return "", fmt.Errorf("SessionName did not contain an instance id")
 		}
@@ -336,14 +394,13 @@ func (h *handler) renderTemplate(template string, identity *token.Identity) (str
 		if err != nil {
 			return "", err
 		}
-		template = strings.Replace(template, "{{EC2PrivateDNSName}}", privateDNSName, -1)
+		template = strings.Replace(template, "{{ECSPrivateDNSName}}", privateDNSName, -1)
 	}
 
 	template = strings.Replace(template, "{{AccountID}}", identity.AccountID, -1)
 	sessionName := strings.Replace(identity.SessionName, "@", "-", -1)
 	template = strings.Replace(template, "{{SessionName}}", sessionName, -1)
 	template = strings.Replace(template, "{{SessionNameRaw}}", identity.SessionName, -1)
-	template = strings.Replace(template, "{{AccessKeyID}}", identity.AccessKeyID, -1)
 
 	return template, nil
 }

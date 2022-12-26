@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,7 +17,6 @@ import (
 	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/aws-iam-authenticator/pkg/config"
 )
 
 var log = logrus.New()
@@ -29,7 +29,7 @@ func TestConfigMap(t *testing.T) {
 	validRoleMappings := []config.RoleMapping{
 		{
 			RoleARN:  nodeRoleARN,
-			Username: "system:node:{{EC2PrivateDNSName}}",
+			Username: "system:node:{{ECSPrivateDNSName}}",
 			Groups:   []string{"system:bootstrappers", "system:nodes"},
 		},
 	}
@@ -83,7 +83,7 @@ func TestConfigMap(t *testing.T) {
 			"aws-auth-space-out-of-place.yaml", []config.RoleMapping{
 				{
 					RoleARN:  nodeRoleARN,
-					Username: "system:node:{{EC2PrivateDNSName}}",
+					Username: "system:node:{{ECSPrivateDNSName}}",
 					Groups:   []string{"system:bootstrappers - system:nodes"},
 				},
 			}, validUserMappings, validAWSAccounts, false,
@@ -153,8 +153,8 @@ func TestConfigMap(t *testing.T) {
 				}
 			}
 			ms.mutex.Lock()
-			if len(tt.expectedAWSAccounts) != len(ms.awsAccounts) {
-				t.Errorf("expected accounts %v, got %v", tt.expectedAWSAccounts, ms.awsAccounts)
+			if len(tt.expectedAWSAccounts) != len(ms.alibabaCloudAccounts) {
+				t.Errorf("expected accounts %v, got %v", tt.expectedAWSAccounts, ms.alibabaCloudAccounts)
 			}
 			ms.mutex.Unlock()
 		})
