@@ -26,9 +26,9 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
-	versioned "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/clientset/versioned"
-	iamauthenticator "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/informers/externalversions/iamauthenticator"
-	internalinterfaces "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/informers/externalversions/internalinterfaces"
+	versioned "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/clientset/versioned"
+	ramauthenticator "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/informers/externalversions/ramauthenticator"
+	internalinterfaces "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/informers/externalversions/internalinterfaces"
 )
 
 // SharedInformerOption defines the functional option type for SharedInformerFactory.
@@ -171,9 +171,9 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Iamauthenticator() iamauthenticator.Interface
+	Ramauthenticator() ramauthenticator.Interface
 }
 
-func (f *sharedInformerFactory) Iamauthenticator() iamauthenticator.Interface {
-	return iamauthenticator.New(f, f.namespace, f.tweakListOptions)
+func (f *sharedInformerFactory) Ramauthenticator() ramauthenticator.Interface {
+	return ramauthenticator.New(f, f.namespace, f.tweakListOptions)
 }

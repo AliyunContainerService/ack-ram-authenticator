@@ -26,10 +26,10 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 
-	iamauthenticator "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/apis/iamauthenticator"
-	iamauthenticatorv1alpha1 "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/apis/iamauthenticator/v1alpha1"
-	"sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/clientset/versioned/fake"
-	informers "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/informers/externalversions"
+	ramauthenticator "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/apis/ramauthenticator"
+	ramauthenticatorv1alpha1 "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/apis/ramauthenticator/v1alpha1"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/clientset/versioned/fake"
+	informers "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/informers/externalversions"
 )
 
 var (
@@ -42,7 +42,7 @@ type fixture struct {
 	client     *fake.Clientset
 	kubeclient *k8sfake.Clientset
 
-	iamIdentityLister []*iamauthenticatorv1alpha1.IAMIdentityMapping
+	ramIdentityLister []*ramauthenticatorv1alpha1.RAMIdentityMapping
 
 	kubeactions []core.Action
 	actions     []core.Action
@@ -59,13 +59,13 @@ func newFixture(t *testing.T) *fixture {
 	return f
 }
 
-func newIAMIdentityMapping(name, arn, username string) *iamauthenticatorv1alpha1.IAMIdentityMapping {
-	return &iamauthenticatorv1alpha1.IAMIdentityMapping{
-		TypeMeta: metav1.TypeMeta{APIVersion: iamauthenticatorv1alpha1.SchemeGroupVersion.String()},
+func newRAMIdentityMapping(name, arn, username string) *ramauthenticatorv1alpha1.RAMIdentityMapping {
+	return &ramauthenticatorv1alpha1.RAMIdentityMapping{
+		TypeMeta: metav1.TypeMeta{APIVersion: ramauthenticatorv1alpha1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: iamauthenticatorv1alpha1.IAMIdentityMappingSpec{
+		Spec: ramauthenticatorv1alpha1.RAMIdentityMappingSpec{
 			ARN:      arn,
 			Username: username,
 			Groups:   []string{"system:masters"},
@@ -79,27 +79,27 @@ func (f *fixture) newController() (*Controller, informers.SharedInformerFactory)
 
 	i := informers.NewSharedInformerFactory(f.client, noResyncPeriodFunc())
 
-	c := New(f.kubeclient, f.client, i.Iamauthenticator().V1alpha1().IAMIdentityMappings())
+	c := New(f.kubeclient, f.client, i.Ramauthenticator().V1alpha1().RAMIdentityMappings())
 
-	c.iamMappingsSynced = alwaysReady
+	c.ramMappingsSynced = alwaysReady
 	c.recorder = &record.FakeRecorder{}
 
-	for _, f := range f.iamIdentityLister {
-		i.Iamauthenticator().V1alpha1().IAMIdentityMappings().Informer().GetIndexer().Add(f)
+	for _, f := range f.ramIdentityLister {
+		i.Ramauthenticator().V1alpha1().RAMIdentityMappings().Informer().GetIndexer().Add(f)
 	}
 
 	return c, i
 }
 
-func (f *fixture) run(iamIdentityName string) {
-	f.runController(iamIdentityName, true, false)
+func (f *fixture) run(ramIdentityName string) {
+	f.runController(ramIdentityName, true, false)
 }
 
-func (f *fixture) runExpectError(iamIdentityName string) {
-	f.runController(iamIdentityName, true, true)
+func (f *fixture) runExpectError(ramIdentityName string) {
+	f.runController(ramIdentityName, true, true)
 }
 
-func (f *fixture) runController(iamIdentityName string, startInformers bool, expectError bool) {
+func (f *fixture) runController(ramIdentityName string, startInformers bool, expectError bool) {
 	c, i := f.newController()
 	if startInformers {
 		stopCh := make(chan struct{})
@@ -107,11 +107,11 @@ func (f *fixture) runController(iamIdentityName string, startInformers bool, exp
 		i.Start(stopCh)
 	}
 
-	err := c.syncHandler(iamIdentityName)
+	err := c.syncHandler(ramIdentityName)
 	if !expectError && err != nil {
-		f.t.Errorf("error syncing iam identity %v", err)
+		f.t.Errorf("error syncing ram identity %v", err)
 	} else if expectError && err == nil {
-		f.t.Error("expected error syncing iam identity, got nil")
+		f.t.Error("expected error syncing ram identity, got nil")
 	}
 
 	actions := filterInformerActions(f.client.Actions())
@@ -190,8 +190,8 @@ func filterInformerActions(actions []core.Action) []core.Action {
 	ret := []core.Action{}
 	for _, action := range actions {
 		if len(action.GetNamespace()) == 0 &&
-			(action.Matches("list", "iamidentitymappings") ||
-				action.Matches("watch", "iamidentitymappings")) {
+			(action.Matches("list", "ramidentitymappings") ||
+				action.Matches("watch", "ramidentitymappings")) {
 			continue
 		}
 		ret = append(ret, action)
@@ -200,42 +200,42 @@ func filterInformerActions(actions []core.Action) []core.Action {
 	return ret
 }
 
-func (f *fixture) expectUpdateAction(iamidentity *iamauthenticatorv1alpha1.IAMIdentityMapping) {
-	action := core.NewRootUpdateAction(schema.GroupVersionResource{Group: iamauthenticator.GroupName, Resource: "iamidentitymappings"}, iamidentity)
+func (f *fixture) expectUpdateAction(ramidentity *ramauthenticatorv1alpha1.RAMIdentityMapping) {
+	action := core.NewRootUpdateAction(schema.GroupVersionResource{Group: ramauthenticator.GroupName, Resource: "ramidentitymappings"}, ramidentity)
 	f.actions = append(f.actions, action)
 }
 
-func (f *fixture) expectUpdateStatusAction(iamidentity *iamauthenticatorv1alpha1.IAMIdentityMapping) {
-	action := core.NewRootUpdateSubresourceAction(schema.GroupVersionResource{Group: iamauthenticator.GroupName, Resource: "iamidentitymappings"}, "status", iamidentity)
+func (f *fixture) expectUpdateStatusAction(ramidentity *ramauthenticatorv1alpha1.RAMIdentityMapping) {
+	action := core.NewRootUpdateSubresourceAction(schema.GroupVersionResource{Group: ramauthenticator.GroupName, Resource: "ramidentitymappings"}, "status", ramidentity)
 	f.actions = append(f.actions, action)
 }
 
-func (f *fixture) expectCreateAction(iamidentity *iamauthenticatorv1alpha1.IAMIdentityMapping) {
-	action := core.NewRootCreateAction(schema.GroupVersionResource{Group: iamauthenticator.GroupName, Resource: "iamidentitymappings"}, iamidentity)
+func (f *fixture) expectCreateAction(ramidentity *ramauthenticatorv1alpha1.RAMIdentityMapping) {
+	action := core.NewRootCreateAction(schema.GroupVersionResource{Group: ramauthenticator.GroupName, Resource: "ramidentitymappings"}, ramidentity)
 	f.actions = append(f.actions, action)
 }
 
-func getKey(iamidentity *iamauthenticatorv1alpha1.IAMIdentityMapping, t *testing.T) string {
-	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(iamidentity)
+func getKey(ramidentity *ramauthenticatorv1alpha1.RAMIdentityMapping, t *testing.T) string {
+	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(ramidentity)
 	if err != nil {
-		t.Errorf("unexpected error getting key for iam identity %v : %v", iamidentity.Name, err)
+		t.Errorf("unexpected error getting key for ram identity %v : %v", ramidentity.Name, err)
 		return ""
 	}
 	return key
 }
 
-func TestIAMIdentityMappingCreation(t *testing.T) {
+func TestRAMIdentityMappingCreation(t *testing.T) {
 	f := newFixture(t)
-	iamidentity := newIAMIdentityMapping("test", "arn:aws:iam::XXXXXXXXXXXX:user/AuthorizedUser", "user-1")
-	f.iamIdentityLister = append(f.iamIdentityLister, iamidentity)
-	f.objects = append(f.objects, iamidentity)
+	ramidentity := newRAMIdentityMapping("test", "arn:acs:ram::XXXXXXXXXXXX:user/AuthorizedUser", "user-1")
+	f.ramIdentityLister = append(f.ramIdentityLister, ramidentity)
+	f.objects = append(f.objects, ramidentity)
 
 	// Update will always add these parameters
-	canonicalizedArn := "arn:aws:iam::xxxxxxxxxxxx:user/authorizeduser"
-	iamidentity.Status = iamauthenticatorv1alpha1.IAMIdentityMappingStatus{
+	canonicalizedArn := "arn:acs:ram::xxxxxxxxxxxx:user/authorizeduser"
+	ramidentity.Status = ramauthenticatorv1alpha1.RAMIdentityMappingStatus{
 		CanonicalARN: canonicalizedArn,
 	}
 
-	f.expectUpdateStatusAction(iamidentity)
-	f.run(getKey(iamidentity, t))
+	f.expectUpdateStatusAction(ramidentity)
+	f.run(getKey(ramidentity, t))
 }

@@ -3,9 +3,9 @@ package file
 import (
 	"fmt"
 
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/arn"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
-	"sigs.k8s.io/aws-iam-authenticator/pkg/arn"
-	"sigs.k8s.io/aws-iam-authenticator/pkg/mapper"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper"
 )
 
 type FileMapper struct {

@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/configmap"
 	core_v1 "k8s.io/api/core/v1"
-	"sigs.k8s.io/aws-iam-authenticator/pkg/mapper/configmap"
 )
 
 func TestAddUser(t *testing.T) {

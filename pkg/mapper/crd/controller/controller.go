@@ -33,17 +33,17 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"sigs.k8s.io/aws-iam-authenticator/pkg/arn"
-	iamauthenticatorv1alpha1 "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/apis/iamauthenticator/v1alpha1"
-	clientset "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/clientset/versioned"
-	iamscheme "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/clientset/versioned/scheme"
-	informers "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/informers/externalversions/iamauthenticator/v1alpha1"
-	listers "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/listers/iamauthenticator/v1alpha1"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/arn"
+	ramauthenticatorv1alpha1 "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/apis/ramauthenticator/v1alpha1"
+	clientset "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/clientset/versioned"
+	ramscheme "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/clientset/versioned/scheme"
+	informers "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/informers/externalversions/ramauthenticator/v1alpha1"
+	listers "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/listers/ramauthenticator/v1alpha1"
 )
 
 const (
 	// controllerAgentName is the name the controller appears as in the Event logger
-	controllerAgentName = "aws-iam-authenticator"
+	controllerAgentName = "ack-ram-authenticator"
 
 	// SuccessSynced is used as part of the Event 'reason' when a Identity is synced
 	SuccessSynced = "Synced"
@@ -57,14 +57,14 @@ type Controller struct {
 	// kubeclientset implements the Kubernetes clientset, used for the event recorder
 	kubeclientset kubernetes.Interface
 
-	// iamclientset implements the IAMIdentityMapping clientset, used for getting identities
-	iamclientset clientset.Interface
-	// iamMappingLister implements the lister interface for IAMIdentityMappings
-	iamMappingLister listers.IAMIdentityMappingLister
-	// iamMappingsSynced is a function to get if the informers have synced
-	iamMappingsSynced cache.InformerSynced
-	// iamMappingsIndex is a custom indexer which allows for indexing on canonical arns
-	iamMappingsIndex cache.Indexer
+	// ramclientset implements the IAMIdentityMapping clientset, used for getting identities
+	ramclientset clientset.Interface
+	// ramMappingLister implements the lister interface for IAMIdentityMappings
+	ramMappingLister listers.RAMIdentityMappingLister
+	// ramMappingsSynced is a function to get if the informers have synced
+	ramMappingsSynced cache.InformerSynced
+	// ramMappingsIndex is a custom indexer which allows for indexing on canonical arns
+	ramMappingsIndex cache.Indexer
 
 	// workqueue implements a FIFO queue used for processing items
 	workqueue workqueue.RateLimitingInterface
@@ -75,11 +75,11 @@ type Controller struct {
 // New will initialize a default controller object
 func New(
 	kubeclientset kubernetes.Interface,
-	iamclientset clientset.Interface,
-	iamMappingInformer informers.IAMIdentityMappingInformer) *Controller {
+	ramclientset clientset.Interface,
+	ramMappingInformer informers.RAMIdentityMappingInformer) *Controller {
 
 	// Initialize the Scheme
-	utilruntime.Must(iamscheme.AddToScheme(scheme.Scheme))
+	utilruntime.Must(ramscheme.AddToScheme(scheme.Scheme))
 
 	// Setup event broadcaster
 	logrus.Info("creating event broadcaster")
@@ -90,9 +90,9 @@ func New(
 
 	controller := &Controller{
 		kubeclientset:     kubeclientset,
-		iamclientset:      iamclientset,
-		iamMappingLister:  iamMappingInformer.Lister(),
-		iamMappingsSynced: iamMappingInformer.Informer().HasSynced,
+		ramclientset:      ramclientset,
+		ramMappingLister:  ramMappingInformer.Lister(),
+		ramMappingsSynced: ramMappingInformer.Informer().HasSynced,
 		workqueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "IAMIdentityMappings"),
 		recorder:          recorder,
 	}
@@ -102,21 +102,21 @@ func New(
 	// canonical ARNs, we're ignoring deletes because all checks for roles happen
 	// using the in-memory cache which is updated automatically on deletes no further
 	// actions are necessary
-	iamMappingInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	ramMappingInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.enqueueIAMIdentityMapping,
 		UpdateFunc: func(old, new interface{}) {
 			controller.enqueueIAMIdentityMapping(new)
 		},
 	})
 
-	err := iamMappingInformer.Informer().GetIndexer().AddIndexers(cache.Indexers{
-		"canonicalARN": IndexIAMIdentityMappingByCanonicalArn,
+	err := ramMappingInformer.Informer().GetIndexer().AddIndexers(cache.Indexers{
+		"canonicalARN": IndexRAMIdentityMappingByCanonicalArn,
 	})
 	if err != nil {
 		logrus.WithError(err).Fatal("error adding index")
 	}
 
-	controller.iamMappingsIndex = iamMappingInformer.Informer().GetIndexer()
+	controller.ramMappingsIndex = ramMappingInformer.Informer().GetIndexer()
 
 	return controller
 }
@@ -126,10 +126,10 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 	defer utilruntime.HandleCrash()
 	defer c.workqueue.ShutDown()
 
-	logrus.Info("starting aws iam authenticator controller")
+	logrus.Info("starting ack ram authenticator controller")
 
 	logrus.Info("waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(stopCh, c.iamMappingsSynced); !ok {
+	if ok := cache.WaitForCacheSync(stopCh, c.ramMappingsSynced); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
 
@@ -194,32 +194,32 @@ func (c *Controller) syncHandler(key string) (err error) {
 		return nil
 	}
 
-	iamIdentityMapping, err := c.iamMappingLister.Get(name)
+	ramIdentityMapping, err := c.ramMappingLister.Get(name)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			utilruntime.HandleError(fmt.Errorf("iam identity mapping %s no longer exists", key))
+			utilruntime.HandleError(fmt.Errorf("ram identity mapping %s no longer exists", key))
 			return nil
 		}
 		return err
 	}
 
 	// Process items
-	if iamIdentityMapping.Spec.ARN != "" {
-		iamIdentityMappingCopy := iamIdentityMapping.DeepCopy()
+	if ramIdentityMapping.Spec.ARN != "" {
+		ramIdentityMappingCopy := ramIdentityMapping.DeepCopy()
 
-		canonicalizedARN, err := arn.Canonicalize(strings.ToLower(iamIdentityMapping.Spec.ARN))
+		canonicalizedARN, err := arn.Canonicalize(strings.ToLower(ramIdentityMapping.Spec.ARN))
 		if err != nil {
 			return err
 		}
 
-		iamIdentityMappingCopy.Status.CanonicalARN = canonicalizedARN
-		_, err = c.iamclientset.IamauthenticatorV1alpha1().IAMIdentityMappings().UpdateStatus(context.TODO(), iamIdentityMappingCopy, metav1.UpdateOptions{})
+		ramIdentityMappingCopy.Status.CanonicalARN = canonicalizedARN
+		_, err = c.ramclientset.RamauthenticatorV1alpha1().RAMIdentityMappings().UpdateStatus(context.TODO(), ramIdentityMappingCopy, metav1.UpdateOptions{})
 		if err != nil {
 			return err
 		}
 	}
 
-	c.recorder.Event(iamIdentityMapping, corev1.EventTypeNormal, SuccessSynced, IdentitySynced)
+	c.recorder.Event(ramIdentityMapping, corev1.EventTypeNormal, SuccessSynced, IdentitySynced)
 	return nil
 }
 
@@ -235,13 +235,13 @@ func (c *Controller) enqueueIAMIdentityMapping(obj interface{}) {
 }
 
 // IndexIAMIdentityMappingByCanonicalArn collects the information for the additional indexer used for finding identities
-func IndexIAMIdentityMappingByCanonicalArn(obj interface{}) ([]string, error) {
-	iamIdentity, ok := obj.(*iamauthenticatorv1alpha1.IAMIdentityMapping)
+func IndexRAMIdentityMappingByCanonicalArn(obj interface{}) ([]string, error) {
+	ramIdentity, ok := obj.(*ramauthenticatorv1alpha1.RAMIdentityMapping)
 	if !ok {
 		return []string{}, nil
 	}
 
-	canonicalArnStr := iamIdentity.Status.CanonicalARN
+	canonicalArnStr := ramIdentity.Status.CanonicalARN
 	if canonicalArnStr == "" {
 		return []string{}, nil
 	}

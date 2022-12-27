@@ -6,15 +6,15 @@ import (
 	"time"
 
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper"
 	ramauthenticatorv1alpha1 "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/apis/ramauthenticator/v1alpha1"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/controller"
 	clientset "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/clientset/versioned"
 	informers "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/informers/externalversions"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
-	"sigs.k8s.io/aws-iam-authenticator/pkg/mapper"
-	"sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/controller"
 )
 
 type CRDMapper struct {
@@ -57,7 +57,7 @@ func NewCRDMapper(cfg config.Config) (*CRDMapper, error) {
 
 	ramInformerFactory = informers.NewSharedInformerFactory(iamClient, time.Second*36000)
 
-	ramMappingInformer := ramInformerFactory.Iamauthenticator().V1alpha1().RAMIdentityMappings()
+	ramMappingInformer := ramInformerFactory.Ramauthenticator().V1alpha1().RAMIdentityMappings()
 	ramMappingsSynced := ramMappingInformer.Informer().HasSynced
 	ramMappingsIndex := ramMappingInformer.Informer().GetIndexer()
 

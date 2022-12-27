@@ -18,13 +18,13 @@ limitations under the License.
 package v1alpha1
 
 import (
-	internalinterfaces "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/informers/externalversions/internalinterfaces"
+	internalinterfaces "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// IAMIdentityMappings returns a IAMIdentityMappingInformer.
-	IAMIdentityMappings() IAMIdentityMappingInformer
+	// RAMIdentityMappings returns a RAMIdentityMappingInformer.
+	RAMIdentityMappings() RAMIdentityMappingInformer
 }
 
 type version struct {
@@ -38,7 +38,7 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// IAMIdentityMappings returns a IAMIdentityMappingInformer.
-func (v *version) IAMIdentityMappings() IAMIdentityMappingInformer {
-	return &iAMIdentityMappingInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+// RAMIdentityMappings returns a RAMIdentityMappingInformer.
+func (v *version) RAMIdentityMappings() RAMIdentityMappingInformer {
+	return &rAMIdentityMappingInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }

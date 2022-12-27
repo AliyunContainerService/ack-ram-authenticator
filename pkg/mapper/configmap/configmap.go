@@ -20,7 +20,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
-	"sigs.k8s.io/aws-iam-authenticator/pkg/metrics"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/metrics"
 )
 
 type MapStore struct {

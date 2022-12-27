@@ -7,13 +7,13 @@ import (
 	"fmt"
 
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/configmap"
 	"github.com/sirupsen/logrus"
 	core_v1 "k8s.io/api/core/v1"
 	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	client_v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/util/retry"
-	"sigs.k8s.io/aws-iam-authenticator/pkg/mapper/configmap"
 )
 
 // Client defines configmap client methods.

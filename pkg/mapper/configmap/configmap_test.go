@@ -15,18 +15,10 @@ import (
 	k8stesting "k8s.io/client-go/testing"
 )
 
-func init() {
-	config.SSORoleMatchEnabled = true
-}
-
 var (
 	testUser    = config.UserMapping{UserARN: "arn:aws:iam::012345678912:user/matt", Username: "matlan", Groups: []string{"system:master", "dev"}}
 	testRole    = config.RoleMapping{RoleARN: "arn:aws:iam::012345678912:role/computer", Username: "computer", Groups: []string{"system:nodes"}}
 	testSSORole = config.RoleMapping{
-		SSO: &config.SSOARNMatcher{
-			PermissionSetName: "ViewOnlyAccess",
-			AccountID:         "012345678912",
-		},
 		Username: "television",
 		Groups:   []string{"system:nodes"},
 	}
@@ -34,14 +26,14 @@ var (
 
 func makeStore() MapStore {
 	ms := MapStore{
-		users:       make(map[string]config.UserMapping),
-		roles:       make(map[string]config.RoleMapping),
-		awsAccounts: make(map[string]interface{}),
+		users:                make(map[string]config.UserMapping),
+		roles:                make(map[string]config.RoleMapping),
+		alibabaCloudAccounts: make(map[string]interface{}),
 	}
 	ms.users["arn:aws:iam::012345678912:user/matt"] = testUser
 	ms.roles["arn:aws:iam::012345678912:role/awsreservedsso_viewonlyaccess_*"] = testSSORole
 	ms.roles["arn:aws:iam::012345678912:role/comp*"] = testRole
-	ms.awsAccounts["123"] = nil
+	ms.alibabaCloudAccounts["123"] = nil
 	return ms
 }
 
@@ -106,13 +98,13 @@ func TestSSORoleMapping(t *testing.T) {
 	}
 }
 
-func TestAWSAccount(t *testing.T) {
+func TestAliAccount(t *testing.T) {
 	ms := makeStore()
 	if !ms.AWSAccount("123") {
-		t.Errorf("Expected aws account '123' to be in accounts list: %v", ms.awsAccounts)
+		t.Errorf("Expected aws account '123' to be in accounts list: %v", ms.alibabaCloudAccounts)
 	}
 	if ms.AWSAccount("345") {
-		t.Errorf("Did not expect account '345' to be in accounts list: %v", ms.awsAccounts)
+		t.Errorf("Did not expect account '345' to be in accounts list: %v", ms.alibabaCloudAccounts)
 	}
 }
 

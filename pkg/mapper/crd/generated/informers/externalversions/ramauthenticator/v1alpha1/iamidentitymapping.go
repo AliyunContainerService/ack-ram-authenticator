@@ -25,32 +25,32 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
-	iamauthenticatorv1alpha1 "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/apis/iamauthenticator/v1alpha1"
-	versioned "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/clientset/versioned"
-	internalinterfaces "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/informers/externalversions/internalinterfaces"
-	v1alpha1 "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/listers/iamauthenticator/v1alpha1"
+	ramauthenticatorv1alpha1 "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/apis/ramauthenticator/v1alpha1"
+	versioned "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/clientset/versioned"
+	internalinterfaces "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/listers/ramauthenticator/v1alpha1"
 )
 
 // RAMIdentityMappingInformer provides access to a shared informer and lister for
-// IAMIdentityMappings.
+// RAMIdentityMappings.
 type RAMIdentityMappingInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha1.IAMIdentityMappingLister
+	Lister() v1alpha1.RAMIdentityMappingLister
 }
 
-type iAMIdentityMappingInformer struct {
+type rAMIdentityMappingInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 }
 
-// NewRAMIdentityMappingInformer constructs a new informer for IAMIdentityMapping type.
+// NewRAMIdentityMappingInformer constructs a new informer for RAMIdentityMapping type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
 func NewRAMIdentityMappingInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
 	return NewFilteredRAMIdentityMappingInformer(client, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredRAMIdentityMappingInformer constructs a new informer for IAMIdentityMapping type.
+// NewFilteredRAMIdentityMappingInformer constructs a new informer for RAMIdentityMapping type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
 func NewFilteredRAMIdentityMappingInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
@@ -60,29 +60,29 @@ func NewFilteredRAMIdentityMappingInformer(client versioned.Interface, resyncPer
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.IamauthenticatorV1alpha1().IAMIdentityMappings().List(context.TODO(), options)
+				return client.RamauthenticatorV1alpha1().RAMIdentityMappings().List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.IamauthenticatorV1alpha1().IAMIdentityMappings().Watch(context.TODO(), options)
+				return client.RamauthenticatorV1alpha1().RAMIdentityMappings().Watch(context.TODO(), options)
 			},
 		},
-		&iamauthenticatorv1alpha1.IAMIdentityMapping{},
+		&ramauthenticatorv1alpha1.RAMIdentityMapping{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *iAMIdentityMappingInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+func (f *rAMIdentityMappingInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
 	return NewFilteredRAMIdentityMappingInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *iAMIdentityMappingInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&iamauthenticatorv1alpha1.IAMIdentityMapping{}, f.defaultInformer)
+func (f *rAMIdentityMappingInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&ramauthenticatorv1alpha1.RAMIdentityMapping{}, f.defaultInformer)
 }
 
-func (f *iAMIdentityMappingInformer) Lister() v1alpha1.IAMIdentityMappingLister {
-	return v1alpha1.NewIAMIdentityMappingLister(f.Informer().GetIndexer())
+func (f *rAMIdentityMappingInformer) Lister() v1alpha1.RAMIdentityMappingLister {
+	return v1alpha1.NewRAMIdentityMappingLister(f.Informer().GetIndexer())
 }

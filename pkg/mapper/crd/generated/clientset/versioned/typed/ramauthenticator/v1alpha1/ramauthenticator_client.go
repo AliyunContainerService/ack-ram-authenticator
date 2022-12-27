@@ -19,26 +19,26 @@ package v1alpha1
 
 import (
 	rest "k8s.io/client-go/rest"
-	v1alpha1 "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/apis/iamauthenticator/v1alpha1"
-	"sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/clientset/versioned/scheme"
+	v1alpha1 "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/apis/ramauthenticator/v1alpha1"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/clientset/versioned/scheme"
 )
 
-type IamauthenticatorV1alpha1Interface interface {
+type RamauthenticatorV1alpha1Interface interface {
 	RESTClient() rest.Interface
-	IAMIdentityMappingsGetter
+	RAMIdentityMappingsGetter
 }
 
-// IamauthenticatorV1alpha1Client is used to interact with features provided by the iamauthenticator.k8s.aws group.
-type IamauthenticatorV1alpha1Client struct {
+// RamauthenticatorV1alpha1Client is used to interact with features provided by the ramauthenticator.k8s.alibabacloud group.
+type RamauthenticatorV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *IamauthenticatorV1alpha1Client) IAMIdentityMappings() IAMIdentityMappingInterface {
-	return newIAMIdentityMappings(c)
+func (c *RamauthenticatorV1alpha1Client) RAMIdentityMappings() RAMIdentityMappingInterface {
+	return newRAMIdentityMappings(c)
 }
 
-// NewForConfig creates a new IamauthenticatorV1alpha1Client for the given config.
-func NewForConfig(c *rest.Config) (*IamauthenticatorV1alpha1Client, error) {
+// NewForConfig creates a new RamauthenticatorV1alpha1Client for the given config.
+func NewForConfig(c *rest.Config) (*RamauthenticatorV1alpha1Client, error) {
 	config := *c
 	if err := setConfigDefaults(&config); err != nil {
 		return nil, err
@@ -47,12 +47,12 @@ func NewForConfig(c *rest.Config) (*IamauthenticatorV1alpha1Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &IamauthenticatorV1alpha1Client{client}, nil
+	return &RamauthenticatorV1alpha1Client{client}, nil
 }
 
-// NewForConfigOrDie creates a new IamauthenticatorV1alpha1Client for the given config and
+// NewForConfigOrDie creates a new RamauthenticatorV1alpha1Client for the given config and
 // panics if there is an error in the config.
-func NewForConfigOrDie(c *rest.Config) *IamauthenticatorV1alpha1Client {
+func NewForConfigOrDie(c *rest.Config) *RamauthenticatorV1alpha1Client {
 	client, err := NewForConfig(c)
 	if err != nil {
 		panic(err)
@@ -60,9 +60,9 @@ func NewForConfigOrDie(c *rest.Config) *IamauthenticatorV1alpha1Client {
 	return client
 }
 
-// New creates a new IamauthenticatorV1alpha1Client for the given RESTClient.
-func New(c rest.Interface) *IamauthenticatorV1alpha1Client {
-	return &IamauthenticatorV1alpha1Client{c}
+// New creates a new RamauthenticatorV1alpha1Client for the given RESTClient.
+func New(c rest.Interface) *RamauthenticatorV1alpha1Client {
+	return &RamauthenticatorV1alpha1Client{c}
 }
 
 func setConfigDefaults(config *rest.Config) error {
@@ -80,7 +80,7 @@ func setConfigDefaults(config *rest.Config) error {
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *IamauthenticatorV1alpha1Client) RESTClient() rest.Interface {
+func (c *RamauthenticatorV1alpha1Client) RESTClient() rest.Interface {
 	if c == nil {
 		return nil
 	}

@@ -22,7 +22,7 @@ import (
 
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
-	v1alpha1 "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/apis/iamauthenticator/v1alpha1"
+	v1alpha1 "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/apis/ramauthenticator/v1alpha1"
 )
 
 // GenericInformer is type of SharedIndexInformer which will locate and delegate to other
@@ -52,8 +52,8 @@ func (f *genericInformer) Lister() cache.GenericLister {
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
 	// Group=iamauthenticator.k8s.aws, Version=v1alpha1
-	case v1alpha1.SchemeGroupVersion.WithResource("iamidentitymappings"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Iamauthenticator().V1alpha1().IAMIdentityMappings().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("ramidentitymappings"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Ramauthenticator().V1alpha1().RAMIdentityMappings().Informer()}, nil
 
 	}
 

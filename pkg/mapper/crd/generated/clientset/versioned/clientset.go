@@ -23,24 +23,24 @@ import (
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
-	iamauthenticatorv1alpha1 "sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/clientset/versioned/typed/iamauthenticator/v1alpha1"
+	ramauthenticatorv1alpha1 "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/clientset/versioned/typed/ramauthenticator/v1alpha1"
 )
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	IamauthenticatorV1alpha1() iamauthenticatorv1alpha1.IamauthenticatorV1alpha1Interface
+	RamauthenticatorV1alpha1() ramauthenticatorv1alpha1.RamauthenticatorV1alpha1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	iamauthenticatorV1alpha1 *iamauthenticatorv1alpha1.IamauthenticatorV1alpha1Client
+	ramauthenticatorV1alpha1 *ramauthenticatorv1alpha1.RamauthenticatorV1alpha1Client
 }
 
-// IamauthenticatorV1alpha1 retrieves the IamauthenticatorV1alpha1Client
-func (c *Clientset) IamauthenticatorV1alpha1() iamauthenticatorv1alpha1.IamauthenticatorV1alpha1Interface {
-	return c.iamauthenticatorV1alpha1
+// RamauthenticatorV1alpha1 retrieves the RamauthenticatorV1alpha1Client
+func (c *Clientset) RamauthenticatorV1alpha1() ramauthenticatorv1alpha1.RamauthenticatorV1alpha1Interface {
+	return c.ramauthenticatorV1alpha1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -64,7 +64,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	}
 	var cs Clientset
 	var err error
-	cs.iamauthenticatorV1alpha1, err = iamauthenticatorv1alpha1.NewForConfig(&configShallowCopy)
+	cs.ramauthenticatorV1alpha1, err = ramauthenticatorv1alpha1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 // panics if there is an error in the config.
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
-	cs.iamauthenticatorV1alpha1 = iamauthenticatorv1alpha1.NewForConfigOrDie(c)
+	cs.ramauthenticatorV1alpha1 = ramauthenticatorv1alpha1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -89,7 +89,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.iamauthenticatorV1alpha1 = iamauthenticatorv1alpha1.New(c)
+	cs.ramauthenticatorV1alpha1 = ramauthenticatorv1alpha1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs
