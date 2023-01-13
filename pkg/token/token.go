@@ -20,19 +20,24 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/utils"
+	openapi "github.com/alibabacloud-go/darabonba-openapi/client"
+	"github.com/alibabacloud-go/tea/tea"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"crypto/hmac"
 	"crypto/sha1"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/arn"
+	sts "github.com/alibabacloud-go/sts-20150401/client"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/responses"
-	acsSts "github.com/aliyun/alibaba-cloud-sdk-go/services/sts"
+	"github.com/aliyun/credentials-go/credentials"
 	"github.com/satori/go.uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientauthv1alpha1 "k8s.io/client-go/pkg/apis/clientauthentication/v1alpha1"
@@ -79,12 +84,24 @@ const (
 	respBodyFormat         = "JSON"
 	percentEncode          = "%2F"
 	httpGet                = "GET"
+	ramRoleARNAuthType     = "ram_role_arn"
+	defaultSTSEndpoint     = "sts.aliyuncs.com"
+	vpcStsEndpoint         = "https://sts-vpc.%s.aliyuncs.com"
+	defaultSTSProtocol     = "https"
+	defaultRoleSessionName = "ack-ram-authenticator"
 )
 
 // Token is generated and used by Kubernetes client-go to authenticate with a Kubernetes cluster.
 type Token struct {
 	Token      string
 	Expiration time.Time
+}
+
+// GetTokenOptions is passed to GetWithOptions to provide an extensible get token interface
+type GetTokenOptions struct {
+	Region        string
+	ClusterID     string
+	AssumeRoleARN string
 }
 
 // FormatError is returned when there is a problem with token that is
@@ -157,11 +174,14 @@ type Generator interface {
 	Get(string) (Token, error)
 	// GetWithRole creates a token by assuming the provided role, using the credentials in the default chain.
 	GetWithRole(clusterID, roleARN string) (Token, error)
+	// GetWithSTS returns a token valid for clusterID using the given STS client.
+	GetWithSTS(clusterID string, stsClient *sts.Client) (Token, error)
 	// FormatJSON returns the client auth formatted json for the ExecCredential auth
 	FormatJSON(Token) string
 }
 
 type generator struct {
+	cache bool
 }
 
 // NewGenerator creates a Generator and returns it.
@@ -184,44 +204,87 @@ func StdinStderrTokenProvider() (string, error) {
 }
 
 func (g generator) GetWithRole(clusterID string, roleARN string) (Token, error) {
-	var getCallerIdentityURL string
-	var err error
-	JSONParse := NewJSONStruct()
-	v := acsCredentials{}
-	credentialsFile := getCredentialsFile()
-	JSONParse.Load(credentialsFile, &v)
-	tokenExpiration := time.Now().Local().Add(presignedURLExpiration - 1*time.Minute)
-	if v.AccessSecurityToken != "" {
-		getCallerIdentityURL, err = apiCaller(v.AccessKeyID, v.AccessKeySecret, v.AccessSecurityToken, clusterID)
-		if err != nil {
-			return Token{}, err
-		}
-	} else if roleARN != "" {
-		assumeClient, err := acsSts.NewClientWithAccessKey("", v.AccessKeyID, v.AccessKeySecret)
-		if err != nil {
-			return Token{}, fmt.Errorf("could not assume role with provided AK: %v", err)
-		}
-		request := acsSts.CreateAssumeRoleRequest()
-		request.Scheme = "https"
-		request.RoleArn = roleARN
-		request.RoleSessionName = "ack-ram-session"
-		resp, err := assumeClient.AssumeRole(request)
+	return g.GetWithOptions(&GetTokenOptions{
+		ClusterID:     clusterID,
+		AssumeRoleARN: roleARN,
+	})
+}
 
-		if err != nil {
-			return Token{}, err
+// GetWithOptions takes a GetTokenOptions struct, builds the STS client, and wraps GetWithSTS.
+// If no session has been passed in options, it will build a new session. If an
+// AssumeRoleARN was passed in then assume the role for the session.
+func (g generator) GetWithOptions(options *GetTokenOptions) (Token, error) {
+	if options.ClusterID == "" {
+		return Token{}, fmt.Errorf("ClusterID is required")
+	}
+
+	config := new(credentials.Config)
+	cred, err := credentials.NewCredential(config)
+	if err != nil {
+		return Token{}, fmt.Errorf("could not init credentials: %v", err)
+	}
+	//if tea.StringValue(cred.GetType()) == "ecs_ram_role" {
+	//	return Token{}, fmt.Errorf("empty credentials given")
+	//}
+	//init sts client
+	region := options.Region
+	if region == "" {
+		region = utils.GetMetaData(utils.RegionID)
+	}
+	stsEndpoint := defaultSTSEndpoint
+	if region != "" {
+		stsEndpoint = fmt.Sprintf(vpcStsEndpoint, region)
+	}
+
+	stsAPI, err := sts.NewClient(&openapi.Config{
+		Endpoint:   tea.String(stsEndpoint),
+		Protocol:   tea.String(defaultSTSProtocol),
+		Credential: cred,
+	})
+
+	if g.cache {
+		// figure out what profile we're using
+		var profile string
+		if v := os.Getenv("ALIBABA_CLOUD_CREDENTIALS_PROFILE"); len(v) > 0 {
+			profile = v
+		} else {
+			profile = "default"
 		}
-		getCallerIdentityURL, err = apiCaller(resp.Credentials.AccessKeyId, resp.Credentials.AccessKeySecret, resp.Credentials.SecurityToken, clusterID)
-		if err != nil {
-			return Token{}, err
-		}
-		//return Token{v1Prefix + base64.RawURLEncoding.EncodeToString([]byte(getCallerIdentityURL)), tokenExpiration}, nil
-	} else {
-		getCallerIdentityURL, err = apiCaller(v.AccessKeyID, v.AccessKeySecret, "", clusterID)
-		if err != nil {
-			return Token{}, err
+		// create a cacheing Provider wrapper around the Credentials
+		if cacheProvider, err := NewFileCacheProvider(options.ClusterID, profile, options.AssumeRoleARN, stsAPI); err == nil {
+
+		} else {
+			_, _ = fmt.Fprintf(os.Stderr, "unable to use cache: %v\n", err)
 		}
 	}
-	return Token{v1Prefix + base64.RawURLEncoding.EncodeToString([]byte(getCallerIdentityURL)), tokenExpiration}, nil
+	// if a roleARN was specified, replace the STS client with one that uses
+	// temporary credentials from that role.
+	if options.AssumeRoleARN != "" {
+		stsReq := &sts.AssumeRoleRequest{
+			RoleArn:         tea.String(options.AssumeRoleARN),
+			RoleSessionName: tea.String(fmt.Sprintf("%s-%d", time.Now().UnixNano())),
+		}
+		assumeRes, err := stsAPI.AssumeRole(stsReq)
+		if err != nil {
+			return Token{}, fmt.Errorf("failed to assume ram role %s, err %v", options.AssumeRoleARN, err)
+		}
+		config.RoleName = tea.String(options.AssumeRoleARN)
+		config.AccessKeyId = assumeRes.Body.Credentials.AccessKeyId
+		config.AccessKeySecret = assumeRes.Body.Credentials.AccessKeySecret
+		config.SecurityToken = assumeRes.Body.Credentials.SecurityToken
+		expiration, err := strconv.Atoi(tea.StringValue(assumeRes.Body.Credentials.Expiration))
+		if err != nil {
+			return Token{}, fmt.Errorf("failed to parse assumed credential expiration %s, err %v", tea.StringValue(assumeRes.Body.Credentials.Expiration), err)
+		}
+		config.RoleSessionExpiration = tea.Int(expiration)
+		stsCred, err := credentials.NewCredential(config)
+		if err != nil {
+			return Token{}, fmt.Errorf("failed to init sts credential for role %s, err %v", options.AssumeRoleARN, err)
+		}
+		stsAPI.Credential = stsCred
+	}
+
+	return g.GetWithSTS(options.ClusterID, stsAPI)
 }
 
 // FormatJSON formats the json to support ExecCredential authentication
@@ -417,34 +480,51 @@ func getCredentialsFile() string {
 	return usr.HomeDir + "/.acs/credentials"
 }
 
-// Generate api call url
-func apiCaller(AccessKeyID, AccessKeySecret, SecurityToken, clusterID string) (string, error) {
+// GetWithSTS returns a token valid for clusterID using the given STS client.
+func (g generator) GetWithSTS(clusterID string, stsClient *sts.Client) (Token, error) {
+	// generate an sts:GetCallerIdentity request and add our custom cluster ID header
+	accessKey, err := stsClient.GetAccessKeyId()
+	if err != nil {
+		return Token{}, err
+	}
+	accessSecret, err := stsClient.GetAccessKeySecret()
+	if err != nil {
+		return Token{}, err
+	}
+	securityToken, err := stsClient.GetSecurityToken()
+	if err != nil {
+		return Token{}, err
+	}
+
 	queryStr := "SignatureVersion=" + stsSignVersion
 	queryStr += "&Format=" + respBodyFormat
 	queryStr += "&Timestamp=" + url.QueryEscape(time.Now().UTC().Format(timeFormat))
-	queryStr += "&AccessKeyId=" + AccessKeyID
+	queryStr += "&AccessKeyId=" + tea.StringValue(accessKey)
 	queryStr += "&SignatureMethod=HMAC-SHA1"
 	queryStr += "&Version=" + stsAPIVersion
 	queryStr += "&SignatureNonce=" + uuid.NewV4().String()
 	queryStr += "&Action=GetCallerIdentity"
 	queryStr += "&ClusterId=" + clusterID
-	if SecurityToken != "" {
-		queryStr += "&SecurityToken=" + url.QueryEscape(SecurityToken)
+	if tea.StringValue(securityToken) != "" {
+		queryStr += "&SecurityToken=" + url.QueryEscape(tea.StringValue(securityToken))
 	}
-
 	queryParams, err := url.ParseQuery(queryStr)
-
 	if err != nil {
-		return "", err
+		return Token{}, err
 	}
 	result := queryParams.Encode()
 
 	strToSign := httpGet + "&" + percentEncode + "&" + url.QueryEscape(result)
-	hashSign := hmac.New(sha1.New, []byte(AccessKeySecret+"&"))
+	hashSign := hmac.New(sha1.New, []byte(tea.StringValue(accessSecret)+"&"))
 	hashSign.Write([]byte(strToSign))
 	signature := base64.StdEncoding.EncodeToString(hashSign.Sum(nil))
 
 	// Build url
 	getCallerIdentityURL := stsHost + "?" + queryStr + "&Signature=" + url.QueryEscape(signature)
-	return getCallerIdentityURL, nil
+
+	// Set token expiration to 1 minute before the presigned URL expires for some cushion
+	tokenExpiration := time.Now().Local().Add(presignedURLExpiration - 1*time.Minute)
+	// TODO: this may need to be a constant-time base64 encoding
+	return Token{v1Prefix + base64.RawURLEncoding.EncodeToString([]byte(getCallerIdentityURL)), tokenExpiration}, nil
+
 }

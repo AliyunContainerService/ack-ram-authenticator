@@ -1,14 +1,16 @@
-module github.com/kubernetes-sigs/ack-ram-authenticator
+module github.com/AliyunContainerService/ack-ram-authenticator
 
 go 1.16
 
 require (
-	github.com/AliyunContainerService/ack-ram-authenticator v1.0.2
+	github.com/alibabacloud-go/darabonba-openapi v0.1.7
+	github.com/alibabacloud-go/sts-20150401 v1.1.0
+	github.com/alibabacloud-go/tea v1.1.15
 	github.com/aliyun/alibaba-cloud-sdk-go v0.0.0-20190916104532-daf2d24ce8d4
-	github.com/aws/aws-sdk-go v1.44.107
+	github.com/aliyun/credentials-go v1.2.4
+	github.com/aws/aws-sdk-go v1.44.107 // indirect
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/gofrs/flock v0.7.0
-	github.com/google/gnostic v0.6.9 // indirect
 	github.com/manifoldco/promptui v0.9.0
 	github.com/prometheus/client_golang v1.11.0
 	github.com/satori/go.uuid v1.2.0
@@ -27,8 +29,6 @@ require (
 	sigs.k8s.io/aws-iam-authenticator v0.6.0
 	sigs.k8s.io/yaml v1.2.0
 )
-
-replace github.com/googleapis/gnostic => github.com/google/gnostic v0.6.9
 
 replace k8s.io/api => k8s.io/api v0.22.0
 

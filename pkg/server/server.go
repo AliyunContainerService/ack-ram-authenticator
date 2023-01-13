@@ -19,6 +19,7 @@ package server
 import (
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/configmap"
@@ -26,6 +27,7 @@ import (
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/dynamicfile"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/file"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/metrics"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/utils"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"log"
 	"net/http"
@@ -299,7 +301,7 @@ func (h *handler) authenticateEndpoint(w http.ResponseWriter, req *http.Request)
 	uid := fmt.Sprintf("aws-iam-authenticator:administrative:%s", username)
 	if h.isLoggableIdentity(identity) {
 		// use a prefixed UID that includes the AWS account ID and AWS user ID ("AROAAAAAAAAAAAAAAAAAA")
-		uid = fmt.Sprintf("aws-iam-authenticator:%s:%s", identity.AccountID, identity.UserID)
+		uid = fmt.Sprintf("ack-ram-authenticator:%s:%s", identity.AccountID, identity.UserID)
 	}
 
 	// the token is valid and the role is mapped, return success!
@@ -390,10 +392,12 @@ func (h *handler) renderTemplate(template string, identity *token.Identity) (str
 		if !instanceIDPattern.MatchString(identity.SessionName) {
 			return "", fmt.Errorf("SessionName did not contain an instance id")
 		}
-		privateDNSName, err := h.ec2Provider.GetPrivateDNSName(identity.SessionName)
-		if err != nil {
-			return "", err
+		regionId := utils.GetMetaData(utils.RegionID)
+		privateIp := utils.GetMetaData(utils.PrivateIPv4)
+		if regionId == "" || privateIp == "" {
+			return "", errors.New("not found info from metaserver when get ecs private dns name")
 		}
+		privateDNSName := regionId + "." + privateIp
 		template = strings.Replace(template, "{{ECSPrivateDNSName}}", privateDNSName, -1)
 	}
 

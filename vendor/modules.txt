@@ -1,10 +1,21 @@
-# github.com/AliyunContainerService/ack-ram-authenticator v1.0.2
+# github.com/alibabacloud-go/darabonba-openapi v0.1.7
 ## explicit
-github.com/AliyunContainerService/ack-ram-authenticator/pkg/arn
-github.com/AliyunContainerService/ack-ram-authenticator/pkg/config
-github.com/AliyunContainerService/ack-ram-authenticator/pkg/server
-github.com/AliyunContainerService/ack-ram-authenticator/pkg/token
-github.com/AliyunContainerService/ack-ram-authenticator/pkg/utils
+github.com/alibabacloud-go/darabonba-openapi/client
+# github.com/alibabacloud-go/debug v0.0.0-20190504072949-9472017b5c68
+github.com/alibabacloud-go/debug/debug
+# github.com/alibabacloud-go/endpoint-util v1.1.0
+github.com/alibabacloud-go/endpoint-util/service
+# github.com/alibabacloud-go/openapi-util v0.0.8
+github.com/alibabacloud-go/openapi-util/service
+# github.com/alibabacloud-go/sts-20150401 v1.1.0
+## explicit
+github.com/alibabacloud-go/sts-20150401/client
+# github.com/alibabacloud-go/tea v1.1.15
+## explicit
+github.com/alibabacloud-go/tea/tea
+github.com/alibabacloud-go/tea/utils
+# github.com/alibabacloud-go/tea-utils v1.3.9
+github.com/alibabacloud-go/tea-utils/service
 # github.com/aliyun/alibaba-cloud-sdk-go v0.0.0-20190916104532-daf2d24ce8d4
 ## explicit
 github.com/aliyun/alibaba-cloud-sdk-go/sdk
@@ -18,33 +29,17 @@ github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests
 github.com/aliyun/alibaba-cloud-sdk-go/sdk/responses
 github.com/aliyun/alibaba-cloud-sdk-go/sdk/utils
 github.com/aliyun/alibaba-cloud-sdk-go/services/sts
+# github.com/aliyun/credentials-go v1.2.4
+## explicit
+github.com/aliyun/credentials-go/credentials
+github.com/aliyun/credentials-go/credentials/request
+github.com/aliyun/credentials-go/credentials/response
+github.com/aliyun/credentials-go/credentials/utils
 # github.com/aws/aws-sdk-go v1.44.107
 ## explicit
-github.com/aws/aws-sdk-go/aws
 github.com/aws/aws-sdk-go/aws/arn
 github.com/aws/aws-sdk-go/aws/awserr
-github.com/aws/aws-sdk-go/aws/awsutil
-github.com/aws/aws-sdk-go/aws/client
-github.com/aws/aws-sdk-go/aws/client/metadata
-github.com/aws/aws-sdk-go/aws/credentials
 github.com/aws/aws-sdk-go/aws/endpoints
-github.com/aws/aws-sdk-go/aws/request
-github.com/aws/aws-sdk-go/aws/signer/v4
-github.com/aws/aws-sdk-go/internal/context
-github.com/aws/aws-sdk-go/internal/ini
-github.com/aws/aws-sdk-go/internal/sdkio
-github.com/aws/aws-sdk-go/internal/sdkmath
-github.com/aws/aws-sdk-go/internal/sdkrand
-github.com/aws/aws-sdk-go/internal/shareddefaults
-github.com/aws/aws-sdk-go/internal/strings
-github.com/aws/aws-sdk-go/internal/sync/singleflight
-github.com/aws/aws-sdk-go/private/protocol
-github.com/aws/aws-sdk-go/private/protocol/ec2query
-github.com/aws/aws-sdk-go/private/protocol/query/queryutil
-github.com/aws/aws-sdk-go/private/protocol/rest
-github.com/aws/aws-sdk-go/private/protocol/xml/xmlutil
-github.com/aws/aws-sdk-go/service/ec2
-github.com/aws/aws-sdk-go/service/ec2/ec2iface
 # github.com/beorn7/perks v1.0.1
 github.com/beorn7/perks/quantile
 # github.com/cespare/xxhash/v2 v2.1.1
@@ -74,11 +69,6 @@ github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
-# github.com/google/gnostic v0.6.9
-## explicit
-github.com/google/gnostic/compiler
-github.com/google/gnostic/extensions
-github.com/google/gnostic/jsonschema
 # github.com/google/go-cmp v0.5.5
 github.com/google/go-cmp/cmp
 github.com/google/go-cmp/cmp/internal/diff
@@ -87,7 +77,10 @@ github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
 # github.com/google/gofuzz v1.1.0
 github.com/google/gofuzz
-# github.com/googleapis/gnostic v0.5.5 => github.com/google/gnostic v0.6.9
+# github.com/googleapis/gnostic v0.5.5
+github.com/googleapis/gnostic/compiler
+github.com/googleapis/gnostic/extensions
+github.com/googleapis/gnostic/jsonschema
 github.com/googleapis/gnostic/openapiv2
 # github.com/hashicorp/hcl v1.0.0
 github.com/hashicorp/hcl
@@ -166,6 +159,8 @@ github.com/spf13/pflag
 github.com/spf13/viper
 # github.com/subosito/gotenv v1.2.0
 github.com/subosito/gotenv
+# github.com/tjfoc/gmsm v1.3.2
+github.com/tjfoc/gmsm/sm3
 # golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
@@ -173,6 +168,8 @@ golang.org/x/net/http/httpguts
 golang.org/x/net/http2
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
+golang.org/x/net/internal/socks
+golang.org/x/net/proxy
 # golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
@@ -199,7 +196,7 @@ google.golang.org/appengine/internal/log
 google.golang.org/appengine/internal/remote_api
 google.golang.org/appengine/internal/urlfetch
 google.golang.org/appengine/urlfetch
-# google.golang.org/protobuf v1.27.1
+# google.golang.org/protobuf v1.26.0
 google.golang.org/protobuf/encoding/prototext
 google.golang.org/protobuf/encoding/protowire
 google.golang.org/protobuf/internal/descfmt
@@ -232,7 +229,7 @@ google.golang.org/protobuf/types/known/durationpb
 google.golang.org/protobuf/types/known/timestamppb
 # gopkg.in/inf.v0 v0.9.1
 gopkg.in/inf.v0
-# gopkg.in/ini.v1 v1.51.0
+# gopkg.in/ini.v1 v1.56.0
 gopkg.in/ini.v1
 # gopkg.in/yaml.v2 v2.4.0
 ## explicit
@@ -522,17 +519,6 @@ sigs.k8s.io/aws-iam-authenticator/pkg/mapper/configmap
 sigs.k8s.io/aws-iam-authenticator/pkg/mapper/configmap/client
 sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/apis/iamauthenticator
 sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/apis/iamauthenticator/v1alpha1
-sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/controller
-sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/clientset/versioned
-sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/clientset/versioned/fake
-sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/clientset/versioned/scheme
-sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/clientset/versioned/typed/iamauthenticator/v1alpha1
-sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/clientset/versioned/typed/iamauthenticator/v1alpha1/fake
-sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/informers/externalversions
-sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/informers/externalversions/iamauthenticator
-sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/informers/externalversions/iamauthenticator/v1alpha1
-sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/informers/externalversions/internalinterfaces
-sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/generated/listers/iamauthenticator/v1alpha1
 sigs.k8s.io/aws-iam-authenticator/pkg/metrics
 # sigs.k8s.io/structured-merge-diff/v4 v4.1.2
 sigs.k8s.io/structured-merge-diff/v4/fieldpath
@@ -542,7 +528,6 @@ sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
 ## explicit
 sigs.k8s.io/yaml
-# github.com/googleapis/gnostic => github.com/google/gnostic v0.6.9
 # k8s.io/api => k8s.io/api v0.22.0
 # k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.22.0
 # k8s.io/apimachinery => k8s.io/apimachinery v0.23.0-alpha.0

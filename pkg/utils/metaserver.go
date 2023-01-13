@@ -9,6 +9,7 @@ const (
 	//MetadataURL is the ECS metadata server addr
 	MetadataURL = "http://100.100.100.200/latest/meta-data/"
 	RegionID    = "region-id"
+	PrivateIPv4 = "private-ipv4"
 )
 
 //GetMetaData return host regionid, zoneid
