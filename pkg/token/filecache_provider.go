@@ -4,24 +4,29 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	openapi "github.com/alibabacloud-go/darabonba-openapi/client"
 	sts "github.com/alibabacloud-go/sts-20150401/client"
 	"github.com/alibabacloud-go/tea/tea"
 	"github.com/aliyun/credentials-go/credentials"
-
 	"github.com/gofrs/flock"
+	"gopkg.in/ini.v1"
 	"gopkg.in/yaml.v2"
 	"io/fs"
 	"io/ioutil"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strconv"
+	"strings"
 	"time"
 )
 
 // env variable name for custom credential cache file location
-const cacheFileNameEnv = "ACK_RAM_AUTHENTICATOR_CACHE_FILE"
+const (
+	ENVCredentialFile  = "ALIBABA_CLOUD_CREDENTIALS_FILE"
+	PATHCredentialFile = "~/.alibabacloud/credentials"
+	cacheFileNameEnv   = "ACK_RAM_AUTHENTICATOR_CACHE_FILE"
+	RamRoleARNAuthType = "ram_role_arn"
+)
 
 // A mockable filesystem interface
 var f filesystem = osFS{}
@@ -102,14 +107,22 @@ type cacheKey struct {
 	roleARN   string
 }
 
+// a utility type for ram role arn crendential configuration
+type profileConfig struct {
+	accessKey       string
+	accessSecret    string
+	roleARN         string
+	roleSessionName string
+}
+
 // FileCacheProvider is a Provider implementation that wraps an underlying Provider
 // (contained in Credentials) and provides caching support for credentials for the
 // specified clusterID, profile, and roleARN (contained in cacheKey)
 type FileCacheProvider struct {
-	credentials      *credentials.Credential // the underlying implementation that has the *real* Provider
-	cacheKey         cacheKey                // cache key parameters used to create Provider
-	cachedCredential cachedCredential        // the cached credential, if it exists
-	stsAPI           *sts.Client
+	pc               profileConfig
+	stsEndpoint      string
+	cacheKey         cacheKey         // cache key parameters used to create Provider
+	cachedCredential cachedCredential // the cached credential, if it exists
 }
 
 func (c *cacheFile) Put(key cacheKey, credential cachedCredential) {
@@ -194,8 +207,8 @@ func (p *FileCacheProvider) GetCredential(ctx context.Context) (*Credential, err
 // and works with an on disk cache to speed up credential usage when the cached copy is not expired.
 // If there are any problems accessing or initializing the cache, an error will be returned, and
 // callers should just use the existing credentials provider.
-func NewFileCacheProvider(clusterID, profile, roleARN string, stsAPI *sts.Client) (FileCacheProvider, error) {
-	if stsAPI == nil {
+func NewFileCacheProvider(clusterID, profile, roleARN, stsEndpoint string, pc *profileConfig) (FileCacheProvider, error) {
+	if pc == nil {
 		return FileCacheProvider{}, errors.New("no sts client object provided")
 	}
 	filename := CacheFilename()
@@ -238,7 +251,8 @@ func NewFileCacheProvider(clusterID, profile, roleARN string, stsAPI *sts.Client
 	}
 
 	return FileCacheProvider{
-		creds,
+		*pc,
+		stsEndpoint,
 		cacheKey,
 		cachedCredential,
 	}, nil
@@ -250,48 +264,71 @@ func (f *FileCacheProvider) retrieve() (*Credential, error) {
 		return f.cachedCredential.Credential, nil
 	} else {
 		_, _ = fmt.Fprintf(os.Stderr, "No cached credential available.  Refreshing...\n")
-		// fetch the credentials from the underlying Provider
-		credential, err := f.AssumeRole()
+		var cred *Credential
+		roleArn := f.pc.roleARN
+		// assume role again to renew credential
+		config := new(credentials.Config).
+			SetType(RamRoleARNAuthType).
+			SetAccessKeyId(f.pc.accessKey).
+			SetAccessKeySecret(f.pc.accessSecret).
+			SetRoleArn(roleArn).
+			SetRoleSessionExpiration(3600)
+		tokenCred, err := credentials.NewCredential(config)
 		if err != nil {
-			return credential, err
+			_, _ = fmt.Fprintf(os.Stderr, "Unable to renew credential when assume role %s: %v\n", roleArn, err)
+			return cred, fmt.Errorf("failed to assume ram role %s, err %v", roleArn, err)
 		}
-		if expiration, err := f.credentials.ExpiresAt(); err == nil {
-			// underlying provider supports Expirer interface, so we can cache
-			filename := CacheFilename()
-			// do file locking on cache to prevent inconsistent writes
-			lock := newFlock(filename)
-			defer lock.Unlock()
-			// wait up to a second for the file to lock
-			ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
-			defer cancel()
-			ok, err := lock.TryLockContext(ctx, 250*time.Millisecond) // try to lock every 1/4 second
-			if !ok {
-				// can't get write lock to create/update cache, but still return the credential
-				_, _ = fmt.Fprintf(os.Stderr, "Unable to write lock file %s: %v\n", filename, err)
-				return credential, nil
-			}
-			f.cachedCredential = cachedCredential{
-				credential,
-				expiration,
-				nil,
-			}
-			// don't really care about read error.  Either read the cache, or we create a new cache.
-			cache, _ := readCacheWhileLocked(filename)
-			cache.Put(f.cacheKey, f.cachedCredential)
-			err = writeCacheWhileLocked(filename, cache)
-			if err != nil {
-				// can't write cache, but still return the credential
-				_, _ = fmt.Fprintf(os.Stderr, "Unable to update credential cache %s: %v\n", filename, err)
-				err = nil
-			} else {
-				_, _ = fmt.Fprintf(os.Stderr, "Updated cached credential\n")
-			}
-		} else {
-			// credential doesn't support expiration time, so can't cache, but still return the credential
-			_, _ = fmt.Fprintf(os.Stderr, "Unable to cache credential: %v\n", err)
+
+		stsAPI, err := sts.NewClient(&openapi.Config{
+			Endpoint:   tea.String(f.stsEndpoint),
+			Protocol:   tea.String(defaultSTSProtocol),
+			Credential: tokenCred,
+		})
+		expiration := time.Now().Local().Add(3600*time.Second - 1*time.Minute)
+		stsReq := &sts.AssumeRoleRequest{
+			RoleArn:         tea.String(f.pc.roleARN),
+			RoleSessionName: tea.String(fmt.Sprintf("%s-%d", defaultRoleSessionName, time.Now().UnixNano())),
+		}
+		assumeRes, err := stsAPI.AssumeRole(stsReq)
+		if err != nil {
+			return cred, fmt.Errorf("failed to assume ram role %s, err %v", roleArn, err)
+		}
+		cred.AccessKeyId = tea.StringValue(assumeRes.Body.Credentials.AccessKeyId)
+		cred.AccessKeySecret = tea.StringValue(assumeRes.Body.Credentials.AccessKeySecret)
+		cred.SecurityToken = tea.StringValue(assumeRes.Body.Credentials.SecurityToken)
+
+		// underlying provider supports Expirer interface, so we can cache
+		filename := CacheFilename()
+		// do file locking on cache to prevent inconsistent writes
+		lock := newFlock(filename)
+		defer lock.Unlock()
+		// wait up to a second for the file to lock
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Second)
+		defer cancel()
+		ok, err := lock.TryLockContext(ctx, 250*time.Millisecond) // try to lock every 1/4 second
+		if !ok {
+			// can't get write lock to create/update cache, but still return the credential
+			_, _ = fmt.Fprintf(os.Stderr, "Unable to write lock file %s: %v\n", filename, err)
+			return cred, nil
+		}
+		f.cachedCredential = cachedCredential{
+			cred,
+			expiration,
+			nil,
+		}
+		// don't really care about read error.  Either read the cache, or we create a new cache.
+		cache, _ := readCacheWhileLocked(filename)
+		cache.Put(f.cacheKey, f.cachedCredential)
+		err = writeCacheWhileLocked(filename, cache)
+		if err != nil {
+			// can't write cache, but still return the credential
+			_, _ = fmt.Fprintf(os.Stderr, "Unable to update credential cache %s: %v\n", filename, err)
 			err = nil
+		} else {
+			_, _ = fmt.Fprintf(os.Stderr, "Updated cached credential\n")
 		}
-		return credential, err
+
+		return cred, err
 	}
 }
 
@@ -327,27 +364,89 @@ func UserHomeDir() string {
 	return e.Getenv("HOME")
 }
 
-func (c *cachedCredential) shouldRefresh(expiryWindow time.Duration) bool {
-	if c == nil {
-		return true
+// GetHomePath return home directory according to the system.
+// if the environmental virables does not exist, will return empty
+func GetHomePath() string {
+	if runtime.GOOS == "windows" {
+		path, ok := os.LookupEnv("USERPROFILE")
+		if !ok {
+			return ""
+		}
+		return path
 	}
-	expiryWindow = expiryWindow + time.Duration(rand.Int63n(int64(time.Minute)))
-	return time.Until(c.Expiration) <= expiryWindow
+	path, ok := os.LookupEnv("HOME")
+	if !ok {
+		return ""
+	}
+	return path
 }
 
-func (f *FileCacheProvider) AssumeRole() {
-	stsReq := &sts.AssumeRoleRequest{
-		RoleArn:         tea.String(f.cacheKey.roleARN),
-		RoleSessionName: tea.String(fmt.Sprintf("%s-%d", time.Now().UnixNano())),
+func checkDefaultPath() (path string, err error) {
+	path = GetHomePath()
+	if path == "" {
+		return "", errors.New("The default credential file path is invalid")
 	}
-	assumeRes, err := stsAPI.AssumeRole(stsReq)
+	path = strings.Replace("~/.alibabacloud/credentials", "~", path, 1)
+	_, err = os.Stat(path)
 	if err != nil {
-		return Token{}, fmt.Errorf("failed to assume ram role %s, err %v", options.AssumeRoleARN, err)
+		return "", nil
 	}
-	config.RoleName = tea.String(options.AssumeRoleARN)
-	config.AccessKeyId = assumeRes.Body.Credentials.AccessKeyId
-	config.AccessKeySecret = assumeRes.Body.Credentials.AccessKeySecret
-	config.SecurityToken = assumeRes.Body.Credentials.SecurityToken
-	expiration, err := strconv.Atoi(tea.StringValue(assumeRes.Body.Credentials.Expiration))
-	return
+	return path, nil
+}
+
+func getRamRoleArnProfile(profile string) *profileConfig {
+	path, ok := os.LookupEnv(ENVCredentialFile)
+	if !ok {
+		var err error
+		path, err = checkDefaultPath()
+		if err != nil || path == "" {
+			_, _ = fmt.Fprintf(os.Stderr, "not found credential file in default path")
+			return nil
+		}
+	} else if path == "" {
+		_, _ = fmt.Fprintf(os.Stderr, "Environment variable '"+ENVCredentialFile+"' cannot be empty")
+		return nil
+	}
+
+	ini, err := ini.Load(path)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "ERROR: Can not open file"+err.Error())
+		return nil
+	}
+
+	section, err := ini.GetSection(profile)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "ERROR: Can not load section"+err.Error())
+		return nil
+	}
+
+	value, err := section.GetKey("type")
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "ERROR: Can not find credential type"+err.Error())
+		return nil
+	}
+
+	switch value.String() {
+	case "ram_role_arn":
+		value1, err1 := section.GetKey("access_key_id")
+		value2, err2 := section.GetKey("access_key_secret")
+		value3, err3 := section.GetKey("role_arn")
+		value4, err4 := section.GetKey("role_session_name")
+		if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "ERROR: Failed to get value")
+			return nil
+		}
+		if value1.String() == "" || value2.String() == "" || value3.String() == "" || value4.String() == "" {
+			_, _ = fmt.Fprintf(os.Stderr, "ERROR: Value can't be empty")
+			return nil
+		}
+		return &profileConfig{
+			accessKey:       value1.String(),
+			accessSecret:    value2.String(),
+			roleARN:         value3.String(),
+			roleSessionName: value4.String(),
+		}
+	}
+	_, _ = fmt.Fprintf(os.Stderr, "Info: Not found ram_role_arn type in profile configuration")
+	return nil
 }

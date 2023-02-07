@@ -250,9 +250,13 @@ func (g generator) GetWithOptions(options *GetTokenOptions) (Token, error) {
 		} else {
 			profile = "default"
 		}
-		// create a cacheing Provider wrapper around the Credentials
-		if cacheProvider, err := NewFileCacheProvider(options.ClusterID, profile, options.AssumeRoleARN, stsAPI); err == nil {
 
+		profileConfig := getRamRoleArnProfile(profile)
+		if profileConfig != nil {
+			// create a cacheing Provider wrapper around the Credentials
+			if cacheProvider, err := NewFileCacheProvider(options.ClusterID, profile, options.AssumeRoleARN, stsEndpoint, profileConfig); err == nil {
+				stsAPI.Credential = &FileCacheCredential{&cacheProvider}
+			}
 		} else {
 			_, _ = fmt.Fprintf(os.Stderr, "unable to use cache: %v\n", err)
 		}
@@ -262,7 +266,7 @@ func (g generator) GetWithOptions(options *GetTokenOptions) (Token, error) {
 	if options.AssumeRoleARN != "" {
 		stsReq := &sts.AssumeRoleRequest{
 			RoleArn:         tea.String(options.AssumeRoleARN),
-			RoleSessionName: tea.String(fmt.Sprintf("%s-%d", time.Now().UnixNano())),
+			RoleSessionName: tea.String(fmt.Sprintf("%s-%d", defaultRoleSessionName, time.Now().UnixNano())),
 		}
 		assumeRes, err := stsAPI.AssumeRole(stsReq)
 		if err != nil {
