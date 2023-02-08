@@ -16,4 +16,4 @@ RUN apk add --no-cache ca-certificates && \
 COPY --from=builder /go/src/github.com/AliyunContainerService/ack-ram-authenticator/build/bin/ack-ram-authenticator /bin/ack-ram-authenticator
 #ADD ./build/bin/ack-ram-authenticator /bin/ack-ram-authenticator
 
-CMD ["./ack-ram-authenticator"]
+ENTRYPOINT ["/ack-ram-authenticator"]
