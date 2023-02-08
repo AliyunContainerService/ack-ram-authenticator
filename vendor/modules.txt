@@ -18,17 +18,9 @@ github.com/alibabacloud-go/tea/utils
 github.com/alibabacloud-go/tea-utils/service
 # github.com/aliyun/alibaba-cloud-sdk-go v0.0.0-20190916104532-daf2d24ce8d4
 ## explicit
-github.com/aliyun/alibaba-cloud-sdk-go/sdk
-github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth
-github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/credentials
-github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/credentials/provider
-github.com/aliyun/alibaba-cloud-sdk-go/sdk/auth/signers
-github.com/aliyun/alibaba-cloud-sdk-go/sdk/endpoints
 github.com/aliyun/alibaba-cloud-sdk-go/sdk/errors
-github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests
 github.com/aliyun/alibaba-cloud-sdk-go/sdk/responses
 github.com/aliyun/alibaba-cloud-sdk-go/sdk/utils
-github.com/aliyun/alibaba-cloud-sdk-go/services/sts
 # github.com/aliyun/credentials-go v1.2.4
 ## explicit
 github.com/aliyun/credentials-go/credentials
@@ -230,6 +222,7 @@ google.golang.org/protobuf/types/known/timestamppb
 # gopkg.in/inf.v0 v0.9.1
 gopkg.in/inf.v0
 # gopkg.in/ini.v1 v1.56.0
+## explicit
 gopkg.in/ini.v1
 # gopkg.in/yaml.v2 v2.4.0
 ## explicit
@@ -517,8 +510,6 @@ sigs.k8s.io/aws-iam-authenticator/pkg/config/kubeconfig
 sigs.k8s.io/aws-iam-authenticator/pkg/mapper
 sigs.k8s.io/aws-iam-authenticator/pkg/mapper/configmap
 sigs.k8s.io/aws-iam-authenticator/pkg/mapper/configmap/client
-sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/apis/iamauthenticator
-sigs.k8s.io/aws-iam-authenticator/pkg/mapper/crd/apis/iamauthenticator/v1alpha1
 sigs.k8s.io/aws-iam-authenticator/pkg/metrics
 # sigs.k8s.io/structured-merge-diff/v4 v4.1.2
 sigs.k8s.io/structured-merge-diff/v4/fieldpath

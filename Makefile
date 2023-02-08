@@ -1,4 +1,4 @@
-DOCKER_REGISTRY ?= "registry.cn-hangzhou.aliyuncs.com/acs"
+MakefileDOCKER_REGISTRY ?= "registry.cn-hangzhou.aliyuncs.com/acs"
 BINARY_NAME=ack-ram-authenticator
 AUTHENTICATOR_VERSION=v0.1.0
 GO111MODULE=on
@@ -20,17 +20,17 @@ setup:
 	gometalinter --install --update
 	glide install --strip-vendor
 
-build: *.go fmt
-	CGO_ENABLED=0  go build -o build/bin/$(BINARY_NAME) gitlab.alibaba-inc.com/cos/$(BINARY_NAME)/cmd/ack-ram-authenticator
+build:
+	CGO_ENABLED=0  go build -o build/bin/$(BINARY_NAME) github.com/AliyunContainerService/$(BINARY_NAME)/cmd/ack-ram-authenticator
 
-build-race: *.go fmt
-	CGO_ENABLED=0  go build -race -o build/bin/$(BINARY_NAME) gitlab.alibaba-inc.com/cos/$(BINARY_NAME)/cmd/ack-ram-authenticator
+build-race:
+	CGO_ENABLED=0  go build -race -o build/bin/$(BINARY_NAME) github.com/AliyunContainerService/$(BINARY_NAME)/cmd/ack-ram-authenticator
 
 build-all:
 	CGO_ENABLED=0  go build $$(glide nv)
 
 build-image:
-	CGO_ENABLED=0  go build -o build/bin/$(BINARY_NAME) gitlab.alibaba-inc.com/cos/$(BINARY_NAME)/cmd/ack-ram-authenticator
+	CGO_ENABLED=0  go build -o build/bin/$(BINARY_NAME) github.com/AliyunContainerService/$(BINARY_NAME)/cmd/ack-ram-authenticator
 	docker build --build-arg AUTHENTICATOR_VERSION=${AUTHENTICATOR_VERSION} -t ${IMG} .
 
 # Run tests
