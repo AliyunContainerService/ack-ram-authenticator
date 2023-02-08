@@ -33,7 +33,7 @@ func NewCRDMapper(cfg config.Config) (*CRDMapper, error) {
 	var err error
 	var k8sconfig *rest.Config
 	var kubeClient kubernetes.Interface
-	var iamClient clientset.Interface
+	var ramClient clientset.Interface
 	var ramInformerFactory informers.SharedInformerFactory
 
 	if cfg.Master != "" || cfg.Kubeconfig != "" {
@@ -50,18 +50,18 @@ func NewCRDMapper(cfg config.Config) (*CRDMapper, error) {
 		return nil, fmt.Errorf("can't create kubernetes client: %v", err)
 	}
 
-	iamClient, err = clientset.NewForConfig(k8sconfig)
+	ramClient, err = clientset.NewForConfig(k8sconfig)
 	if err != nil {
 		return nil, fmt.Errorf("can't create authenticator client: %v", err)
 	}
 
-	ramInformerFactory = informers.NewSharedInformerFactory(iamClient, time.Second*36000)
+	ramInformerFactory = informers.NewSharedInformerFactory(ramClient, time.Second*36000)
 
 	ramMappingInformer := ramInformerFactory.Ramauthenticator().V1alpha1().RAMIdentityMappings()
 	ramMappingsSynced := ramMappingInformer.Informer().HasSynced
 	ramMappingsIndex := ramMappingInformer.Informer().GetIndexer()
 
-	ctrl := controller.New(kubeClient, iamClient, ramMappingInformer)
+	ctrl := controller.New(kubeClient, ramClient, ramMappingInformer)
 
 	return &CRDMapper{ctrl, ramInformerFactory, ramMappingsSynced, ramMappingsIndex}, nil
 }
@@ -89,7 +89,7 @@ func (m *CRDMapper) Start(stopCh <-chan struct{}) error {
 func (m *CRDMapper) Map(canonicalARN string) (*config.IdentityMapping, error) {
 	canonicalARN = strings.ToLower(canonicalARN)
 
-	var iamidentity *ramauthenticatorv1alpha1.RAMIdentityMapping
+	var ramidentity *ramauthenticatorv1alpha1.RAMIdentityMapping
 	var ok bool
 	objects, err := m.ramMappingsIndex.ByIndex("canonicalARN", canonicalARN)
 	if err != nil {
@@ -98,17 +98,17 @@ func (m *CRDMapper) Map(canonicalARN string) (*config.IdentityMapping, error) {
 
 	if len(objects) > 0 {
 		for _, obj := range objects {
-			iamidentity, ok = obj.(*ramauthenticatorv1alpha1.RAMIdentityMapping)
+			ramidentity, ok = obj.(*ramauthenticatorv1alpha1.RAMIdentityMapping)
 			if ok {
 				break
 			}
 		}
 
-		if iamidentity != nil {
+		if ramidentity != nil {
 			return &config.IdentityMapping{
 				IdentityARN: canonicalARN,
-				Username:    iamidentity.Spec.Username,
-				Groups:      iamidentity.Spec.Groups,
+				Username:    ramidentity.Spec.Username,
+				Groups:      ramidentity.Spec.Groups,
 			}, nil
 		}
 	}

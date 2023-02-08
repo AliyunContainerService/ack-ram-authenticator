@@ -52,14 +52,14 @@ const (
 	IdentitySynced = "Identity synced successfully"
 )
 
-// Controller implements the logic for getting and mutating IAMIdentityMappings
+// Controller implements the logic for getting and mutating RAMIdentityMappings
 type Controller struct {
 	// kubeclientset implements the Kubernetes clientset, used for the event recorder
 	kubeclientset kubernetes.Interface
 
-	// ramclientset implements the IAMIdentityMapping clientset, used for getting identities
+	// ramclientset implements the RAMIdentityMapping clientset, used for getting identities
 	ramclientset clientset.Interface
-	// ramMappingLister implements the lister interface for IAMIdentityMappings
+	// ramMappingLister implements the lister interface for RAMIdentityMappings
 	ramMappingLister listers.RAMIdentityMappingLister
 	// ramMappingsSynced is a function to get if the informers have synced
 	ramMappingsSynced cache.InformerSynced
@@ -93,7 +93,7 @@ func New(
 		ramclientset:      ramclientset,
 		ramMappingLister:  ramMappingInformer.Lister(),
 		ramMappingsSynced: ramMappingInformer.Informer().HasSynced,
-		workqueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "IAMIdentityMappings"),
+		workqueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "RAMIdentityMappings"),
 		recorder:          recorder,
 	}
 
@@ -103,9 +103,9 @@ func New(
 	// using the in-memory cache which is updated automatically on deletes no further
 	// actions are necessary
 	ramMappingInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: controller.enqueueIAMIdentityMapping,
+		AddFunc: controller.enqueueRAMIdentityMapping,
 		UpdateFunc: func(old, new interface{}) {
-			controller.enqueueIAMIdentityMapping(new)
+			controller.enqueueRAMIdentityMapping(new)
 		},
 	})
 
@@ -223,8 +223,8 @@ func (c *Controller) syncHandler(key string) (err error) {
 	return nil
 }
 
-// enqueueIAMIdentityMapping will pull in a new IAMIdentityMapping and update it
-func (c *Controller) enqueueIAMIdentityMapping(obj interface{}) {
+// enqueueRAMIdentityMapping will pull in a new RAMIdentityMapping and update it
+func (c *Controller) enqueueRAMIdentityMapping(obj interface{}) {
 	var key string
 	var err error
 	if key, err = cache.MetaNamespaceKeyFunc(obj); err != nil {
@@ -234,7 +234,7 @@ func (c *Controller) enqueueIAMIdentityMapping(obj interface{}) {
 	c.workqueue.Add(key)
 }
 
-// IndexIAMIdentityMappingByCanonicalArn collects the information for the additional indexer used for finding identities
+// IndexRAMIdentityMappingByCanonicalArn collects the information for the additional indexer used for finding identities
 func IndexRAMIdentityMappingByCanonicalArn(obj interface{}) ([]string, error) {
 	ramIdentity, ok := obj.(*ramauthenticatorv1alpha1.RAMIdentityMapping)
 	if !ok {

@@ -38,7 +38,7 @@ var ramidentitymappingsResource = schema.GroupVersionResource{Group: "ramauthent
 
 var ramidentitymappingsKind = schema.GroupVersionKind{Group: "ramauthenticator.k8s.alibabacloud", Version: "v1alpha1", Kind: "RAMIdentityMapping"}
 
-// Get takes name of the iAMIdentityMapping, and returns the corresponding iAMIdentityMapping object, and an error if there is any.
+// Get takes name of the rAMIdentityMapping, and returns the corresponding rAMIdentityMapping object, and an error if there is any.
 func (c *FakeRAMIdentityMappings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.RAMIdentityMapping, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewRootGetAction(ramidentitymappingsResource, name), &v1alpha1.RAMIdentityMapping{})
@@ -69,26 +69,26 @@ func (c *FakeRAMIdentityMappings) List(ctx context.Context, opts v1.ListOptions)
 	return list, err
 }
 
-// Watch returns a watch.Interface that watches the requested iAMIdentityMappings.
+// Watch returns a watch.Interface that watches the requested rAMIdentityMappings.
 func (c *FakeRAMIdentityMappings) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
 		InvokesWatch(testing.NewRootWatchAction(ramidentitymappingsResource, opts))
 }
 
-// Create takes the representation of a iAMIdentityMapping and creates it.  Returns the server's representation of the iAMIdentityMapping, and an error, if there is any.
-func (c *FakeRAMIdentityMappings) Create(ctx context.Context, iAMIdentityMapping *v1alpha1.RAMIdentityMapping, opts v1.CreateOptions) (result *v1alpha1.RAMIdentityMapping, err error) {
+// Create takes the representation of a rAMIdentityMapping and creates it.  Returns the server's representation of the rAMIdentityMapping, and an error, if there is any.
+func (c *FakeRAMIdentityMappings) Create(ctx context.Context, rAMIdentityMapping *v1alpha1.RAMIdentityMapping, opts v1.CreateOptions) (result *v1alpha1.RAMIdentityMapping, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(ramidentitymappingsResource, iAMIdentityMapping), &v1alpha1.RAMIdentityMapping{})
+		Invokes(testing.NewRootCreateAction(ramidentitymappingsResource, rAMIdentityMapping), &v1alpha1.RAMIdentityMapping{})
 	if obj == nil {
 		return nil, err
 	}
 	return obj.(*v1alpha1.RAMIdentityMapping), err
 }
 
-// Update takes the representation of a iAMIdentityMapping and updates it. Returns the server's representation of the iAMIdentityMapping, and an error, if there is any.
-func (c *FakeRAMIdentityMappings) Update(ctx context.Context, iAMIdentityMapping *v1alpha1.RAMIdentityMapping, opts v1.UpdateOptions) (result *v1alpha1.RAMIdentityMapping, err error) {
+// Update takes the representation of a rAMIdentityMapping and updates it. Returns the server's representation of the rAMIdentityMapping, and an error, if there is any.
+func (c *FakeRAMIdentityMappings) Update(ctx context.Context, rAMIdentityMapping *v1alpha1.RAMIdentityMapping, opts v1.UpdateOptions) (result *v1alpha1.RAMIdentityMapping, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(ramidentitymappingsResource, iAMIdentityMapping), &v1alpha1.RAMIdentityMapping{})
+		Invokes(testing.NewRootUpdateAction(ramidentitymappingsResource, rAMIdentityMapping), &v1alpha1.RAMIdentityMapping{})
 	if obj == nil {
 		return nil, err
 	}
@@ -97,16 +97,16 @@ func (c *FakeRAMIdentityMappings) Update(ctx context.Context, iAMIdentityMapping
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeRAMIdentityMappings) UpdateStatus(ctx context.Context, iAMIdentityMapping *v1alpha1.RAMIdentityMapping, opts v1.UpdateOptions) (*v1alpha1.RAMIdentityMapping, error) {
+func (c *FakeRAMIdentityMappings) UpdateStatus(ctx context.Context, rAMIdentityMapping *v1alpha1.RAMIdentityMapping, opts v1.UpdateOptions) (*v1alpha1.RAMIdentityMapping, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(ramidentitymappingsResource, "status", iAMIdentityMapping), &v1alpha1.RAMIdentityMapping{})
+		Invokes(testing.NewRootUpdateSubresourceAction(ramidentitymappingsResource, "status", rAMIdentityMapping), &v1alpha1.RAMIdentityMapping{})
 	if obj == nil {
 		return nil, err
 	}
 	return obj.(*v1alpha1.RAMIdentityMapping), err
 }
 
-// Delete takes name of the iAMIdentityMapping and deletes it. Returns an error if one occurs.
+// Delete takes name of the rAMIdentityMapping and deletes it. Returns an error if one occurs.
 func (c *FakeRAMIdentityMappings) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
 		Invokes(testing.NewRootDeleteAction(ramidentitymappingsResource, name), &v1alpha1.RAMIdentityMapping{})
@@ -121,7 +121,7 @@ func (c *FakeRAMIdentityMappings) DeleteCollection(ctx context.Context, opts v1.
 	return err
 }
 
-// Patch applies the patch and returns the patched iAMIdentityMapping.
+// Patch applies the patch and returns the patched rAMIdentityMapping.
 func (c *FakeRAMIdentityMappings) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.RAMIdentityMapping, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewRootPatchSubresourceAction(ramidentitymappingsResource, name, pt, data, subresources...), &v1alpha1.RAMIdentityMapping{})

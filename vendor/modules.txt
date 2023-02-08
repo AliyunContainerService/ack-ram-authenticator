@@ -29,9 +29,6 @@ github.com/aliyun/credentials-go/credentials/response
 github.com/aliyun/credentials-go/credentials/utils
 # github.com/aws/aws-sdk-go v1.44.107
 ## explicit
-github.com/aws/aws-sdk-go/aws/arn
-github.com/aws/aws-sdk-go/aws/awserr
-github.com/aws/aws-sdk-go/aws/endpoints
 # github.com/beorn7/perks v1.0.1
 github.com/beorn7/perks/quantile
 # github.com/cespare/xxhash/v2 v2.1.1
@@ -496,21 +493,14 @@ k8s.io/kube-openapi/pkg/util/proto
 ## explicit
 # k8s.io/sample-controller v0.22.1 => k8s.io/sample-controller v0.22.0
 ## explicit
+k8s.io/sample-controller/pkg/signals
 # k8s.io/utils v0.0.0-20210707171843-4b05e18ac7d9
 k8s.io/utils/buffer
 k8s.io/utils/integer
 k8s.io/utils/trace
 # sigs.k8s.io/aws-iam-authenticator v0.6.0
 ## explicit
-sigs.k8s.io/aws-iam-authenticator/pkg
-sigs.k8s.io/aws-iam-authenticator/pkg/arn
-sigs.k8s.io/aws-iam-authenticator/pkg/config
 sigs.k8s.io/aws-iam-authenticator/pkg/config/certs
-sigs.k8s.io/aws-iam-authenticator/pkg/config/kubeconfig
-sigs.k8s.io/aws-iam-authenticator/pkg/mapper
-sigs.k8s.io/aws-iam-authenticator/pkg/mapper/configmap
-sigs.k8s.io/aws-iam-authenticator/pkg/mapper/configmap/client
-sigs.k8s.io/aws-iam-authenticator/pkg/metrics
 # sigs.k8s.io/structured-merge-diff/v4 v4.1.2
 sigs.k8s.io/structured-merge-diff/v4/fieldpath
 sigs.k8s.io/structured-merge-diff/v4/schema

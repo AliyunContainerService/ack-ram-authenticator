@@ -51,7 +51,7 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=iamauthenticator.k8s.aws, Version=v1alpha1
+	// Group=ramauthenticator.k8s.alibabacloud
 	case v1alpha1.SchemeGroupVersion.WithResource("ramidentitymappings"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Ramauthenticator().V1alpha1().RAMIdentityMappings().Informer()}, nil
 

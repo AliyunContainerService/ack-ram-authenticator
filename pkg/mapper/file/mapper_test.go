@@ -7,24 +7,12 @@ import (
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
 )
 
-func init() {
-	config.SSORoleMatchEnabled = true
-}
-
 func newConfig() config.Config {
 	return config.Config{
 		RoleMappings: []config.RoleMapping{
 			{
 				RoleARN:  "arn:aws:iam::012345678910:role/test-role",
 				Username: "shreyas",
-				Groups:   []string{"system:masters"},
-			},
-			{
-				SSO: &config.SSOARNMatcher{
-					PermissionSetName: "CookieCutterPermissions",
-					AccountID:         "012345678910",
-				},
-				Username: "cookie-cutter",
 				Groups:   []string{"system:masters"},
 			},
 		},
@@ -35,7 +23,7 @@ func newConfig() config.Config {
 				Groups:   []string{"system:masters"},
 			},
 		},
-		AutoMappedAWSAccounts: []string{"000000000000"},
+		AutoMappedAlibabaCloudAccounts: []string{"000000000000"},
 	}
 }
 
@@ -47,14 +35,6 @@ func TestNewFileMapper(t *testing.T) {
 			"arn:aws:iam::012345678910:role/test-role": {
 				RoleARN:  "arn:aws:iam::012345678910:role/test-role",
 				Username: "shreyas",
-				Groups:   []string{"system:masters"},
-			},
-			"arn:aws:iam::012345678910:role/awsreservedsso_cookiecutterpermissions_*": {
-				SSO: &config.SSOARNMatcher{
-					PermissionSetName: "CookieCutterPermissions",
-					AccountID:         "012345678910",
-				},
-				Username: "cookie-cutter",
 				Groups:   []string{"system:masters"},
 			},
 		},

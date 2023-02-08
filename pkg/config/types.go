@@ -124,7 +124,7 @@ type Config struct {
 	// +optional
 	Kubeconfig string
 
-	// BackendMode is an ordered list of backends to get mappings from. Comma-delimited list of: MountedFile,EKSConfigMap,CRD
+	// BackendMode is an ordered list of backends to get mappings from. Comma-delimited list of: MountedFile,ACKConfigMap,CRD
 	BackendMode []string
 
 	//Dynamic File Path for DynamicFile BackendMode

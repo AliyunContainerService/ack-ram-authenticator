@@ -15,7 +15,7 @@ func TestValidateBackendMode(t *testing.T) {
 		{
 			name: "valid backend mode",
 			cfg: config.Config{
-				BackendMode: []string{ModeMountedFile, ModeEKSConfigMap, ModeCRD},
+				BackendMode: []string{ModeMountedFile, ModeACKConfigMap, ModeCRD},
 			},
 		},
 		{

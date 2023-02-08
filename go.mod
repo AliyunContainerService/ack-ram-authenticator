@@ -26,7 +26,7 @@ require (
 	k8s.io/code-generator v0.22.1 // indirect
 	k8s.io/component-base v0.22.1
 	k8s.io/kubernetes v1.22.0 // indirect
-	k8s.io/sample-controller v0.22.1 // indirect
+	k8s.io/sample-controller v0.22.1
 	sigs.k8s.io/aws-iam-authenticator v0.6.0
 	sigs.k8s.io/yaml v1.2.0
 )

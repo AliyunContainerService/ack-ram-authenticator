@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v2"
-	"sigs.k8s.io/aws-iam-authenticator/pkg"
 )
 
 var (

@@ -1,5 +1,5 @@
 /*
-Copyright 2017 by the contributors.
+Copyright 2017 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,19 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package config
+package signals
 
-import "time"
-
-const (
-	// certFilename is the filename (under the StateDir) where the self-signed
-	// CA certificate will be stored.
-	certFilename = "cert.pem"
-
-	// keyFilename is the filename (under the StateDir) where the private key
-	// will be stored.
-	keyFilename = "key.pem"
-
-	// certLifetime is the lifetime of the CA certificate (100 years)
-	certLifetime = time.Hour * 24 * 365 * 100
+import (
+	"os"
 )
+
+var shutdownSignals = []os.Signal{os.Interrupt}

@@ -1133,6 +1133,7 @@ k8s.io/metrics v0.22.0/go.mod h1:eYnwafAUNLLpVmY/msoq0RKIKH5C4TzfjKnMZ0Xrt3A=
 k8s.io/mount-utils v0.22.1-rc.0/go.mod h1:gUi5ht+05KHYc/vJ9q9wbvG3MCYBeOsB5FdTyM60Pzo=
 k8s.io/pod-security-admission v0.22.0/go.mod h1:xKTKO4nzxLDROM+RRndSU7kCZc2XcBYRKLYS+gYuqfo=
 k8s.io/sample-apiserver v0.22.0/go.mod h1:Bkl0f9E1Moxwjvqct7kzDlTvNUTavsworU5FTPlVooA=
+k8s.io/sample-controller v0.22.0 h1:DXeJfeHIaZ09P+d88hJ3waB1ui7ekCUFyZ+HHgEbCA8=
 k8s.io/sample-controller v0.22.0/go.mod h1:VZtb5qVBFaKTIjgy4FYu23i3nzN17dQAebRqsOoQxiM=
 k8s.io/system-validators v1.5.0/go.mod h1:bPldcLgkIUK22ALflnsXk8pvkTEndYdNuaHH6gRrl0Q=
 k8s.io/utils v0.0.0-20201110183641-67b214c5f920/go.mod h1:jPW/WVKK9YHAvNhRxK0md/EJ228hCsBRufyofKtW8HA=

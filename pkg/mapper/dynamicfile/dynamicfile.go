@@ -21,21 +21,21 @@ type DynamicFileMapStore struct {
 	users map[string]config.UserMapping
 	roles map[string]config.RoleMapping
 	// Used as set.
-	awsAccounts map[string]interface{}
+	aliAccounts map[string]interface{}
 	filename    string
 }
 
 type DynamicFileData struct {
-	// RoleMappings is a list of mappings from AWS IAM Role to
+	// RoleMappings is a list of mappings from AlibabaCloud RAM Role to
 	// Kubernetes username + groups.
 	RoleMappings []config.RoleMapping `json:"mapRoles"`
 
-	// UserMappings is a list of mappings from AWS IAM User to
+	// UserMappings is a list of mappings from AlibabaCloud RAM User to
 	// Kubernetes username + groups.
 	UserMappings []config.UserMapping `json:"mapUsers"`
-	// AutoMappedAWSAccounts is a list of AWS accounts that are allowed without an explicit user/role mapping.
-	// IAM ARN from these accounts automatically maps to the Kubernetes username.
-	AutoMappedAWSAccounts []string `json:"mapAccounts"`
+	// AutoMappedAlibabaCloudAccounts is a list of AWS accounts that are allowed without an explicit user/role mapping.
+	// RAM ARN from these accounts automatically maps to the Kubernetes username.
+	AutoMappedAlibabaCloudAccounts []string `json:"mapAccounts"`
 }
 
 type ErrParsingMap struct {
@@ -66,12 +66,12 @@ func (m *DynamicFileMapStore) loadDynamicFile() error {
 	}
 	logrus.Infof("LoadDynamicFile: %v is available. loading", m.filename)
 	// load the initial file content into memory
-	userMappings, roleMappings, awsAccounts, err := ParseMap(m.filename)
+	userMappings, roleMappings, aliAccounts, err := ParseMap(m.filename)
 	if err != nil {
 		logrus.Errorf("LoadDynamicFile: There was an error parsing the dynamic file: %+v. Map is not updated. Please correct dynamic file", err)
 		return err
 	} else {
-		m.saveMap(userMappings, roleMappings, awsAccounts)
+		m.saveMap(userMappings, roleMappings, aliAccounts)
 	}
 	return nil
 }
@@ -115,8 +115,8 @@ func (m *DynamicFileMapStore) startLoadDynamicFile(stopCh <-chan struct{}) {
 						// reset memory
 						userMappings := make([]config.UserMapping, 0)
 						roleMappings := make([]config.RoleMapping, 0)
-						awsAccounts := make([]string, 0)
-						m.saveMap(userMappings, roleMappings, awsAccounts)
+						aliAccounts := make([]string, 0)
+						m.saveMap(userMappings, roleMappings, aliAccounts)
 					}
 					return
 				}
@@ -127,7 +127,7 @@ func (m *DynamicFileMapStore) startLoadDynamicFile(stopCh <-chan struct{}) {
 	}, time.Second, stopCh)
 }
 
-func ParseMap(filename string) (userMappings []config.UserMapping, roleMappings []config.RoleMapping, awsAccounts []string, err error) {
+func ParseMap(filename string) (userMappings []config.UserMapping, roleMappings []config.RoleMapping, aliAccounts []string, err error) {
 	errs := make([]error, 0)
 	userMappings = make([]config.UserMapping, 0)
 	roleMappings = make([]config.RoleMapping, 0)
@@ -135,17 +135,17 @@ func ParseMap(filename string) (userMappings []config.UserMapping, roleMappings 
 	dynamicContent, err := os.ReadFile(filename)
 	if err != nil {
 		logrus.Errorf("ParseMap: could not read from dynamic file")
-		return userMappings, roleMappings, awsAccounts, err
+		return userMappings, roleMappings, aliAccounts, err
 	}
 
 	var dynamicFileData DynamicFileData
 	err = json.Unmarshal([]byte(dynamicContent), &dynamicFileData)
 	if err != nil {
 		if len(dynamicContent) == 0 {
-			return userMappings, roleMappings, awsAccounts, nil
+			return userMappings, roleMappings, aliAccounts, nil
 		}
 		logrus.Error("ParseMap: could not unmarshal dynamic file.")
-		return userMappings, roleMappings, awsAccounts, err
+		return userMappings, roleMappings, aliAccounts, err
 	}
 
 	for _, userMapping := range dynamicFileData.UserMappings {
@@ -164,24 +164,24 @@ func ParseMap(filename string) (userMappings []config.UserMapping, roleMappings 
 		}
 	}
 
-	awsAccounts = dynamicFileData.AutoMappedAWSAccounts[:]
+	aliAccounts = dynamicFileData.AutoMappedAlibabaCloudAccounts[:]
 
 	if len(errs) > 0 {
 		logrus.Warnf("ParseMap: Errors parsing dynamic file: %+v", errs)
 		err = ErrParsingMap{errors: errs}
 	}
-	return userMappings, roleMappings, awsAccounts, err
+	return userMappings, roleMappings, aliAccounts, err
 }
 func (ms *DynamicFileMapStore) saveMap(
 	userMappings []config.UserMapping,
 	roleMappings []config.RoleMapping,
-	awsAccounts []string) {
+	aliAccounts []string) {
 
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()
 	ms.users = make(map[string]config.UserMapping)
 	ms.roles = make(map[string]config.RoleMapping)
-	ms.awsAccounts = make(map[string]interface{})
+	ms.aliAccounts = make(map[string]interface{})
 
 	for _, user := range userMappings {
 		canonicalizedARN, _ := arn.Canonicalize(strings.ToLower(user.UserARN))
@@ -191,8 +191,8 @@ func (ms *DynamicFileMapStore) saveMap(
 		canonicalizedARN, _ := arn.Canonicalize(strings.ToLower(role.RoleARN))
 		ms.roles[canonicalizedARN] = role
 	}
-	for _, awsAccount := range awsAccounts {
-		ms.awsAccounts[awsAccount] = nil
+	for _, awsAccount := range aliAccounts {
+		ms.aliAccounts[awsAccount] = nil
 	}
 }
 
@@ -225,7 +225,7 @@ func (ms *DynamicFileMapStore) RoleMapping(arn string) (config.RoleMapping, erro
 func (ms *DynamicFileMapStore) AWSAccount(id string) bool {
 	ms.mutex.RLock()
 	defer ms.mutex.RUnlock()
-	_, ok := ms.awsAccounts[id]
+	_, ok := ms.aliAccounts[id]
 	return ok
 }
 
@@ -238,7 +238,7 @@ func (ms *DynamicFileMapStore) LogMapping() {
 	for _, role := range ms.roles {
 		logrus.Info(role)
 	}
-	for awsAccount, _ := range ms.awsAccounts {
+	for awsAccount, _ := range ms.aliAccounts {
 		logrus.Info(awsAccount)
 	}
 }

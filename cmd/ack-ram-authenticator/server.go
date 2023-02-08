@@ -17,7 +17,12 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/server"
+	"k8s.io/sample-controller/pkg/signals"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -33,13 +38,17 @@ var serverCmd = &cobra.Command{
 	Short: "Run a webhook validation server suitable that validates tokens using ACK RAM",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		config, err := getConfig()
+		var err error
+		fmt.Printf("Authenticator Version: %q, %q\n", pkg.Version, pkg.CommitID)
+		stopCh := signals.SetupSignalHandler()
 
+		cfg, err := getConfig()
 		if err != nil {
 			logrus.Fatalf("%s", err)
 		}
 
-		server.New(config).Run()
+		httpServer := server.New(cfg, stopCh)
+		httpServer.Run(stopCh)
 	},
 }
 
@@ -67,6 +76,17 @@ func init() {
 		"127.0.0.1",
 		"IP Address to bind the server to listen to. (should be 127.0.0.1 or 0.0.0.0)")
 	viper.BindPFlag("server.bind", serverCmd.Flags().Lookup("bind"))
+
+	serverCmd.Flags().StringSlice("backend-mode",
+		[]string{mapper.ModeMountedFile},
+		fmt.Sprintf("Ordered list of backends to get mappings from. The first one that returns a matching mapping wins. Comma-delimited list of: %s", strings.Join(mapper.BackendModeChoices, ",")))
+	viper.BindPFlag("server.backendMode", serverCmd.Flags().Lookup("backend-mode"))
+
+	serverCmd.Flags().Int(
+		"port",
+		DefaultPort,
+		"Port to bind the server to listen to")
+	viper.BindPFlag("server.port", serverCmd.Flags().Lookup("port"))
 
 	rootCmd.AddCommand(serverCmd)
 }

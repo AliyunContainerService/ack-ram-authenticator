@@ -19,13 +19,14 @@ package main
 import (
 	"errors"
 	"fmt"
-	"os"
-
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
-
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/component-base/featuregate"
+	"os"
 )
 
 var cfgFile string
@@ -34,6 +35,8 @@ var rootCmd = &cobra.Command{
 	Use:   "ack-ram-authenticator",
 	Short: "A tool to authenticate to Kubernetes using ACK RAM credentials",
 }
+
+var featureGates = featuregate.NewFeatureGate()
 
 func main() {
 	Execute()
@@ -60,6 +63,9 @@ func init() {
 		"Specify the cluster `ID`, a unique-per-cluster identifier for your ack-ram-authenticator installation.",
 	)
 	viper.BindPFlag("clusterID", rootCmd.PersistentFlags().Lookup("cluster-id"))
+
+	featureGates.Add(config.DefaultFeatureGates)
+	featureGates.AddFlag(rootCmd.PersistentFlags())
 }
 
 func initConfig() {
@@ -75,7 +81,7 @@ func initConfig() {
 }
 
 func getConfig() (config.Config, error) {
-	config := config.Config{
+	cfg := config.Config{
 		ClusterID:              viper.GetString("clusterID"),
 		HostPort:               viper.GetInt("server.port"),
 		Hostname:               viper.GetString("server.hostname"),
@@ -83,19 +89,46 @@ func getConfig() (config.Config, error) {
 		KubeconfigPregenerated: viper.GetBool("server.kubeconfigPregenerated"),
 		StateDir:               viper.GetString("server.stateDir"),
 		Address:                viper.GetString("server.address"),
+		Kubeconfig:             viper.GetString("server.kubeconfig"),
+		BackendMode:            viper.GetStringSlice("server.backendMode"),
 	}
-	if err := viper.UnmarshalKey("server.mapRoles", &config.RoleMappings); err != nil {
-		return config, fmt.Errorf("invalid server role mappings: %v", err)
+	if err := viper.UnmarshalKey("server.mapRoles", &cfg.RoleMappings); err != nil {
+		return cfg, fmt.Errorf("invalid server role mappings: %v", err)
 	}
-	if err := viper.UnmarshalKey("server.mapUsers", &config.UserMappings); err != nil {
+	if err := viper.UnmarshalKey("server.mapUsers", &cfg.UserMappings); err != nil {
 		logrus.WithError(err).Fatal("invalid server user mappings")
 	}
-
-	if config.ClusterID == "" {
-		return config, errors.New("cluster ID cannot be empty")
+	if err := viper.UnmarshalKey("server.mapAccounts", &cfg.AutoMappedAlibabaCloudAccounts); err != nil {
+		logrus.WithError(err).Fatal("invalid server account mappings")
 	}
 
-	return config, nil
+	if featureGates.Enabled(config.ConfiguredInitDirectories) {
+		logrus.Info("ConfiguredInitDirectories feature enabled")
+	}
+
+	if cfg.ClusterID == "" {
+		return cfg, errors.New("cluster ID cannot be empty")
+	}
+
+	// DynamicFile BackendMode and DynamicFilePath are mutually inclusive.
+	var dynamicFileModeSet bool
+	for _, mode := range cfg.BackendMode {
+		if mode == mapper.ModeDynamicFile {
+			dynamicFileModeSet = true
+		}
+	}
+	if dynamicFileModeSet && cfg.DynamicFilePath == "" {
+		logrus.Fatal("dynamicfile is set in backend-mode but dynamicfilepath is not set")
+	}
+	if !dynamicFileModeSet && cfg.DynamicFilePath != "" {
+		logrus.Fatal("dynamicfile is not set in backend-mode but dynamicfilepath is set")
+	}
+
+	if errs := mapper.ValidateBackendMode(cfg.BackendMode); len(errs) > 0 {
+		return cfg, utilerrors.NewAggregate(errs)
+	}
+
+	return cfg, nil
 }
 
 func getLogFormatter() logrus.Formatter {

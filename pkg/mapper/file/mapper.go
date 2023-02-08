@@ -47,7 +47,7 @@ func NewFileMapper(cfg config.Config) (*FileMapper, error) {
 		}
 		fileMapper.userMap[key] = m
 	}
-	for _, m := range cfg.AutoMappedAWSAccounts {
+	for _, m := range cfg.AutoMappedAlibabaCloudAccounts {
 		fileMapper.accountMap[m] = true
 	}
 
