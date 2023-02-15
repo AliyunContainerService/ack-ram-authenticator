@@ -386,7 +386,7 @@ func checkDefaultPath() (path string, err error) {
 	if path == "" {
 		return "", errors.New("The default credential file path is invalid")
 	}
-	path = strings.Replace("~/.alibabacloud/credentials", "~", path, 1)
+	path = strings.Replace(PATHCredentialFile, "~", path, 1)
 	_, err = os.Stat(path)
 	if err != nil {
 		return "", nil

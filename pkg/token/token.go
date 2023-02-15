@@ -218,8 +218,8 @@ func (g generator) GetWithOptions(options *GetTokenOptions) (Token, error) {
 		return Token{}, fmt.Errorf("ClusterID is required")
 	}
 
-	config := new(credentials.Config)
-	cred, err := credentials.NewCredential(config)
+	var config credentials.Config
+	cred, err := credentials.NewCredential(&config)
 	if err != nil {
 		return Token{}, fmt.Errorf("could not init credentials: %v", err)
 	}
@@ -272,6 +272,7 @@ func (g generator) GetWithOptions(options *GetTokenOptions) (Token, error) {
 		if err != nil {
 			return Token{}, fmt.Errorf("failed to assume ram role %s, err %v", options.AssumeRoleARN, err)
 		}
+		config := new(credentials.Config)
 		config.RoleName = tea.String(options.AssumeRoleARN)
 		config.AccessKeyId = assumeRes.Body.Credentials.AccessKeyId
 		config.AccessKeySecret = assumeRes.Body.Credentials.AccessKeySecret

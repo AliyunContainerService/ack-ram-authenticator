@@ -13,10 +13,7 @@ func (m *RoleMapping) Validate() error {
 
 	if m.RoleARN == "" {
 		return fmt.Errorf("One of rolearn must be supplied")
-	} else if m.RoleARN != "" {
-		return fmt.Errorf("Only one of rolearn can be supplied")
 	}
-
 	return nil
 }
 
