@@ -58,7 +58,7 @@ func (ms *MapStore) startLoadConfigMap(stopCh <-chan struct{}) {
 			default:
 				watcher, err := ms.configMap.Watch(context.TODO(), metav1.ListOptions{
 					Watch:         true,
-					FieldSelector: fields.OneTermEqualSelector("metadata.name", "aws-auth").String(),
+					FieldSelector: fields.OneTermEqualSelector("metadata.name", "alibabacloud-auth").String(),
 				})
 				if err != nil {
 					logrus.Errorf("Unable to re-establish watch: %v, sleeping for 5 seconds.", err)
@@ -80,10 +80,10 @@ func (ms *MapStore) startLoadConfigMap(stopCh <-chan struct{}) {
 					case watch.Added, watch.Modified:
 						switch cm := r.Object.(type) {
 						case *core_v1.ConfigMap:
-							if cm.Name != "aws-auth" {
+							if cm.Name != "alibabacloud-auth" {
 								break
 							}
-							logrus.Info("Received aws-auth watch event")
+							logrus.Info("Received alibabacloud-auth watch event")
 							userMappings, roleMappings, alibabaCloudAccounts, err := ParseMap(cm.Data)
 							if err != nil {
 								logrus.Errorf("There was an error parsing the config maps.  Only saving data that was good, %+v", err)

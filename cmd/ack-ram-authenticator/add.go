@@ -33,7 +33,7 @@ import (
 
 var addCmd = &cobra.Command{
 	Use:   "add",
-	Short: "add IAM entity to an existing aws-auth configmap",
+	Short: "add IAM entity to an existing alibabacloud-auth configmap",
 }
 
 var addUserCmd = &cobra.Command{

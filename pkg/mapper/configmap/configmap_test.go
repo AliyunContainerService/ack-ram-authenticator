@@ -155,7 +155,7 @@ var updatedRoleMapping = `
     - system:nodes
 `
 
-var autoMappedAWSAccountsYAML = `
+var autoMappedAliAccountsYAML = `
 - 123
 - 345
 `
@@ -180,11 +180,11 @@ func TestLoadConfigMap(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 
-	meta := metav1.ObjectMeta{Name: "aws-auth"}
+	meta := metav1.ObjectMeta{Name: "alibabacloud-auth"}
 	data := make(map[string]string)
 	data["mapUsers"] = userMapping
 	data["mapRoles"] = roleMapping
-	data["mapAccounts"] = autoMappedAWSAccountsYAML
+	data["mapAccounts"] = autoMappedAliAccountsYAML
 
 	watcher.Add(&core_v1.ConfigMap{ObjectMeta: meta, Data: data})
 

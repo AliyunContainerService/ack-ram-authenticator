@@ -1,6 +1,6 @@
 ---
-apiVersion: iamauthenticator.k8s.aws/v1alpha1
-kind: IAMIdentityMapping
+apiVersion: ramauthenticator.k8s.alibabacloud/v1alpha1
+kind: RAMIdentityMapping
 metadata:
   name: kubernetes-admin
 spec:

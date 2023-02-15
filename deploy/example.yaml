@@ -22,10 +22,10 @@
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: aws-iam-authenticator
+  name: ack-ram-authenticator
 rules:
 - apiGroups:
-  - iamauthenticator.k8s.aws
+  - ramauthenticator.k8s.alibabacloud
   resources:
   - iamidentitymappings
   verbs:
@@ -33,7 +33,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - iamauthenticator.k8s.aws
+  - ramauthenticator.k8s.alibabacloud
   resources:
   - iamidentitymappings/status
   verbs:
@@ -59,7 +59,7 @@ rules:
   resources:
   - configmaps
   resourceNames:
-  - aws-auth
+  - alibabacloud-auth
   verbs:
   - get
 
@@ -67,33 +67,29 @@ rules:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: aws-iam-authenticator
+  name: ack-ram-authenticator
   namespace: kube-system
 
 ---
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: aws-iam-authenticator
+  name: ack-ram-authenticator
   namespace: kube-system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: aws-iam-authenticator
+  name: ack-ram-authenticator
 subjects:
 - kind: ServiceAccount
-  name: aws-iam-authenticator
+  name: ack-ram-authenticator
   namespace: kube-system
 
 ---
-# EKS-Style ConfigMap: roles and users can be mapped in the same way as supported on EKS.
-# If mappings are defined this way they do not need to be redefined on the other ConfigMap.
-# https://docs.aws.amazon.com/eks/latest/userguide/add-user-role.html
-# uncomment if using EKS-Style ConfigMap
 # apiVersion: v1
 # kind: ConfigMap
 # metadata:
-#   name: aws-auth
+#   name: alibabacloud-auth
 #   namespace: kube-system
 # data:
 #   mapRoles: |
@@ -103,7 +99,7 @@ subjects:
 #         - system:bootstrappers
 #         - system:nodes
 #   mapUsers: |
-#     - rolearn: arn:aws:iam::000000000000:user/Alice
+#     - rolearn: acs:iam::000000000000:user/Alice
 #       username: alice
 #       groups:
 #         - system:masters
@@ -113,98 +109,55 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   namespace: kube-system
-  name: aws-iam-authenticator
+  name: ack-ram-authenticator
   labels:
-    k8s-app: aws-iam-authenticator
+    k8s-app: ack-ram-authenticator
 data:
   config.yaml: |
     # a unique-per-cluster identifier to prevent replay attacks
     # (good choices are a random token or a domain name that will be unique to your cluster)
     clusterID: my-dev-cluster.example.com
     server:
-      # each mapRoles entry maps an IAM role to a username and set of groups
+      # each mapRoles entry maps an RAM role to a username and set of groups
       # Each username and group can optionally contain template parameters:
-      #  1) "{{AccountID}}" is the 12 digit AWS ID.
-      #  2) "{{SessionName}}" is the role session name, with `@` characters
-      #     transliterated to `-` characters.
-      #  3) "{{SessionNameRaw}}" is the role session name, without character
-      #     transliteration (available in version >= 0.5).
+      #  1) "{{AccountID}}" is the 16 digit RAM ID.
+      #  2) "{{SessionName}}" is the role session name.
       mapRoles:
-      # statically map arn:aws:iam::000000000000:role/KubernetesAdmin to a cluster admin
-      - roleARN: arn:aws:iam::000000000000:role/KubernetesAdmin
-        username: kubernetes-admin
-        groups:
-        - system:masters
-      # map EC2 instances in my "KubernetesNode" role to users like
-      # "aws:000000000000:instance:i-0123456789abcdef0". Only use this if you
-      # trust that the role can only be assumed by EC2 instances. If an IAM user
-      # can assume this role directly (with sts:AssumeRole) they can control
-      # SessionName.
-      - roleARN: arn:aws:iam::000000000000:role/KubernetesNode
-        username: aws:{{AccountID}}:instance:{{SessionName}}
-        groups:
-        - system:bootstrappers
-        - aws:instances
-      # map federated users in my "KubernetesAdmin" role to users like
-      # "admin:alice-example.com". The SessionName is an arbitrary role name
-      # like an e-mail address passed by the identity provider. Note that if this
-      # role is assumed directly by an IAM User (not via federation), the user
-      # can control the SessionName.
-      - roleARN: arn:aws:iam::000000000000:role/KubernetesAdmin
-        username: admin:{{SessionName}}
-        groups:
-        - system:masters
-      # map federated users in my "KubernetesOtherAdmin" role to users like
-      # "alice-example.com". The SessionName is an arbitrary role name
-      # like an e-mail address passed by the identity provider. Note that if this
-      # role is assumed directly by an IAM User (not via federation), the user
-      # can control the SessionName.  Note that the "{{SessionName}}" macro is
-      # quoted to ensure it is properly parsed as a string.
-      - roleARN: arn:aws:iam::000000000000:role/KubernetesOtherAdmin
-        username: "{{SessionName}}"
-        groups:
-        - system:masters
-      # map federated users in my "KubernetesUsers" role to users like
-      # "alice@example.com". SessionNameRaw is sourced from the same place as
-      # SessionName with the distinction that no transformation is performed
-      # on the value. For example an email addresses passed by an identity
-      # provider will not have the `@` replaced with a `-`.
-      - roleARN: arn:aws:iam::000000000000:role/KubernetesUsers
-        username: "{{SessionNameRaw}}"
-        groups:
-        - developers
-      # each mapUsers entry maps an IAM role to a static username and set of groups
+        # statically map acs:ram::000000000000:role/KubernetesAdmin to a cluster admin
+        - roleARN: acs:ram::000000000000:role/KubernetesAdmin
+          username: kubernetes-admin
+          groups:
+            - system:masters
+
+      # each mapUsers entry maps an RAM role to a static username and set of groups
       mapUsers:
-      # map user IAM user Alice in 000000000000 to user "alice" in "system:masters"
-      - userARN: arn:aws:iam::000000000000:user/Alice
-        username: alice
-        groups:
-        - system:masters
-      # List of Account IDs to whitelist for authentication
-      mapAccounts:
-      # - <AWS_ACCOUNT_ID>
+        # map user RAM user Alice in 000000000000 to user "alice" in "system:masters"
+        - userARN: acs:ram::000000000000:user/Alice
+          username: alice
+          groups:
+            - system:masters
 
 ---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   namespace: kube-system
-  name: aws-iam-authenticator
+  name: ack-ram-authenticator
   labels:
-    k8s-app: aws-iam-authenticator
+    k8s-app: ack-ram-authenticator
 spec:
   selector:
     matchLabels:
-      k8s-app: aws-iam-authenticator
+      k8s-app: ack-ram-authenticator
   updateStrategy:
     type: RollingUpdate
   template:
     metadata:
       labels:
-        k8s-app: aws-iam-authenticator
+        k8s-app: ack-ram-authenticator
     spec:
       # use service account with access to
-      serviceAccountName: aws-iam-authenticator
+      serviceAccountName: ack-ram-authenticator
 
       # run on the host network (don't depend on CNI)
       hostNetwork: true
@@ -221,23 +174,20 @@ spec:
       # mark pod as critical to the cluster
       priorityClassName: system-cluster-critical
 
-      # run `aws-iam-authenticator server` with three volumes
-      # - config (mounted from the ConfigMap at /etc/aws-iam-authenticator/config.yaml)
+      # run `ack-ram-authenticator server` with three volumes
+      # - config (mounted from the ConfigMap at /etc/ack-ram-authenticator/config.yaml)
       # - state (persisted TLS certificate and keys, mounted from the host)
       # - output (output kubeconfig to plug into your apiserver configuration, mounted from the host)
       containers:
-      - name: aws-iam-authenticator
-        image: 602401143452.dkr.ecr.us-west-2.amazonaws.com/amazon/aws-iam-authenticator:v0.5.3
+      - name: ack-ram-authenticator
+        image: registry.cn-hangzhou.aliyuncs.com/acs/ack-ram-authenticator:v0.1.0
         args:
         - server
         # uncomment if using EKS-Style ConfigMap
         # - --backend-mode=EKSConfigMap
-        - --config=/etc/aws-iam-authenticator/config.yaml
-        - --state-dir=/var/aws-iam-authenticator
-        - --generate-kubeconfig=/etc/kubernetes/aws-iam-authenticator/kubeconfig.yaml
-        # uncomment if using the Kops Usage instructions https://sigs.k8s.io/aws-iam-authenticator#kops-usage
-        # the kubeconfig.yaml is pregenerated by the 'aws-iam-authenticator init' step
-        # - --kubeconfig-pregenerated=true
+        - --config=/etc/ack-ram-authenticator/config.yaml
+        - --state-dir=/var/ack-ram-authenticator
+        - --generate-kubeconfig=/etc/kubernetes/ack-ram-authenticator/kubeconfig.yaml
 
         securityContext:
           allowPrivilegeEscalation: false
@@ -257,19 +207,19 @@ spec:
 
         volumeMounts:
         - name: config
-          mountPath: /etc/aws-iam-authenticator/
+          mountPath: /etc/ack-ram-authenticator/
         - name: state
-          mountPath: /var/aws-iam-authenticator/
+          mountPath: /var/ack-ram-authenticator/
         - name: output
-          mountPath: /etc/kubernetes/aws-iam-authenticator/
+          mountPath: /etc/kubernetes/ack-ram-authenticator/
 
       volumes:
       - name: config
         configMap:
-          name: aws-iam-authenticator
+          name: ack-ram-authenticator
       - name: output
         hostPath:
-          path: /etc/kubernetes/aws-iam-authenticator/
+          path: /etc/kubernetes/ack-ram-authenticator/
       - name: state
         hostPath:
-          path: /var/aws-iam-authenticator/
+          path: /var/ack-ram-authenticator/

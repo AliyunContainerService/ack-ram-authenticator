@@ -22,7 +22,7 @@ type Client interface {
 	AddUser(user *config.UserMapping) (*core_v1.ConfigMap, error)
 }
 
-const mapName = "aws-auth"
+const mapName = "alibabacloud-auth"
 
 // New creates a new "Client".
 func New(cli client_v1.ConfigMapInterface) Client {
