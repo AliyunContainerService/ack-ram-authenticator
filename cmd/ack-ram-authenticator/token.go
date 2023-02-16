@@ -18,12 +18,10 @@ package main
 
 import (
 	"fmt"
-	"os"
-
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/token"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"os"
 )
 
 var tokenCmd = &cobra.Command{
@@ -31,6 +29,7 @@ var tokenCmd = &cobra.Command{
 	Short: "Authenticate using ACK RAM and get token for Kubernetes",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
+		region := viper.GetString("region")
 		roleARN := viper.GetString("role")
 		clusterID := viper.GetString("clusterID")
 		tokenOnly := viper.GetBool("tokenOnly")
@@ -49,13 +48,18 @@ var tokenCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "could not get token: %v\n", err)
 			os.Exit(1)
 		}
-		if roleARN != "" {
-			// if a role was provided, assume that role for the token
-			tok, err = gen.GetWithRole(clusterID, roleARN)
-		} else {
-			// otherwise sign the token with immediately available credentials
-			tok, err = gen.Get(clusterID)
-		}
+		//if roleARN != "" {
+		//	// if a role was provided, assume that role for the token
+		//	tok, err = gen.GetWithRole(clusterID, roleARN)
+		//} else {
+		//	// otherwise sign the token with immediately available credentials
+		//	tok, err = gen.Get(clusterID)
+		//}
+		tok, err = gen.GetWithOptions(&token.GetTokenOptions{
+			ClusterID:     clusterID,
+			AssumeRoleARN: roleARN,
+			Region:        region,
+		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "could not get token: %v\n", err)
 			os.Exit(1)
@@ -71,9 +75,13 @@ var tokenCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(tokenCmd)
+	tokenCmd.Flags().String("region", "", "AlibabaCloud region to use for assume role calls")
 	tokenCmd.Flags().StringP("role", "r", "", "Assume an RAM Role ARN before signing this token")
 	tokenCmd.Flags().Bool("token-only", false, "Return only the token for use with Bearer token based tools")
+	tokenCmd.Flags().Bool("cache", false, "Cache the credential on disk until it expires. Uses the aws profile specified by AWS_PROFILE or the default profile.")
+	viper.BindPFlag("region", tokenCmd.Flags().Lookup("region"))
 	viper.BindPFlag("role", tokenCmd.Flags().Lookup("role"))
 	viper.BindPFlag("tokenOnly", tokenCmd.Flags().Lookup("token-only"))
+	viper.BindPFlag("cache", tokenCmd.Flags().Lookup("cache"))
 	viper.BindEnv("role", "DEFAULT_ROLE")
 }

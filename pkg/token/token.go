@@ -17,31 +17,31 @@ limitations under the License.
 package token
 
 import (
+	"crypto/hmac"
+	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/arn"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/utils"
 	openapi "github.com/alibabacloud-go/darabonba-openapi/client"
+	sts "github.com/alibabacloud-go/sts-20150401/client"
 	"github.com/alibabacloud-go/tea/tea"
+	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/responses"
+	"github.com/aliyun/credentials-go/credentials"
+	"github.com/satori/go.uuid"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clientauthv1alpha1 "k8s.io/client-go/pkg/apis/clientauthentication/v1alpha1"
 	"net/http"
 	"net/url"
 	"os"
+	"os/user"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
-
-	"crypto/hmac"
-	"crypto/sha1"
-	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/arn"
-	sts "github.com/alibabacloud-go/sts-20150401/client"
-	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/responses"
-	"github.com/aliyun/credentials-go/credentials"
-	"github.com/satori/go.uuid"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clientauthv1alpha1 "k8s.io/client-go/pkg/apis/clientauthentication/v1alpha1"
-	"os/user"
 )
 
 // Identity is returned on successful Verify() results. It contains a parsed
@@ -174,6 +174,8 @@ type Generator interface {
 	Get(string) (Token, error)
 	// GetWithRole creates a token by assuming the provided role, using the credentials in the default chain.
 	GetWithRole(clusterID, roleARN string) (Token, error)
+	// Get a token using the provided options
+	GetWithOptions(options *GetTokenOptions) (Token, error)
 	// GetWithSTS returns a token valid for clusterID using the given STS client.
 	GetWithSTS(clusterID string, stsClient *sts.Client) (Token, error)
 	// FormatJSON returns the client auth formatted json for the ExecCredential auth
@@ -218,8 +220,7 @@ func (g generator) GetWithOptions(options *GetTokenOptions) (Token, error) {
 		return Token{}, fmt.Errorf("ClusterID is required")
 	}
 
-	var config credentials.Config
-	cred, err := credentials.NewCredential(&config)
+	cred, err := credentials.NewCredential(nil)
 	if err != nil {
 		return Token{}, fmt.Errorf("could not init credentials: %v", err)
 	}
@@ -227,8 +228,10 @@ func (g generator) GetWithOptions(options *GetTokenOptions) (Token, error) {
 	//	return Token{}, fmt.Errorf("empty credentials given")
 	//}
 	//init sts client
+
 	region := options.Region
 	if region == "" {
+		log.Warnf("empty region id given")
 		region = utils.GetMetaData(utils.RegionID)
 	}
 	stsEndpoint := defaultSTSEndpoint
@@ -297,7 +300,7 @@ func (g generator) FormatJSON(token Token) string {
 	expirationTimestamp := metav1.NewTime(token.Expiration)
 	execInput := &clientauthv1alpha1.ExecCredential{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "client.authentication.k8s.io/v1alpha1",
+			APIVersion: "client.authentication.k8s.io/v1beta1",
 			Kind:       "ExecCredential",
 		},
 		Status: &clientauthv1alpha1.ExecCredentialStatus{
