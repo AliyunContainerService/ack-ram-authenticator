@@ -8,26 +8,24 @@ require (
 	github.com/alibabacloud-go/tea v1.1.15
 	github.com/aliyun/alibaba-cloud-sdk-go v0.0.0-20190916104532-daf2d24ce8d4
 	github.com/aliyun/credentials-go v1.2.4
-	github.com/aws/aws-sdk-go v1.44.107 // indirect
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/gofrs/flock v0.7.0
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/manifoldco/promptui v0.9.0
 	github.com/prometheus/client_golang v1.11.0
 	github.com/satori/go.uuid v1.2.0
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.1.3
 	github.com/spf13/viper v1.7.0
+	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd // indirect
 	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac
 	gopkg.in/ini.v1 v1.56.0
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.22.1
 	k8s.io/apimachinery v0.22.1
 	k8s.io/client-go v0.22.1
-	k8s.io/code-generator v0.22.1 // indirect
 	k8s.io/component-base v0.22.1
-	k8s.io/kubernetes v1.22.0 // indirect
 	k8s.io/sample-controller v0.22.1
-	sigs.k8s.io/aws-iam-authenticator v0.6.0
 	sigs.k8s.io/yaml v1.2.0
 )
 

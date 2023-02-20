@@ -33,7 +33,7 @@ type DynamicFileData struct {
 	// UserMappings is a list of mappings from AlibabaCloud RAM User to
 	// Kubernetes username + groups.
 	UserMappings []config.UserMapping `json:"mapUsers"`
-	// AutoMappedAlibabaCloudAccounts is a list of AWS accounts that are allowed without an explicit user/role mapping.
+	// AutoMappedAlibabaCloudAccounts is a list of Alibaba Cloud accounts that are allowed without an explicit user/role mapping.
 	// RAM ARN from these accounts automatically maps to the Kubernetes username.
 	AutoMappedAlibabaCloudAccounts []string `json:"mapAccounts"`
 }
@@ -191,8 +191,8 @@ func (ms *DynamicFileMapStore) saveMap(
 		canonicalizedARN, _ := arn.Canonicalize(strings.ToLower(role.RoleARN))
 		ms.roles[canonicalizedARN] = role
 	}
-	for _, awsAccount := range aliAccounts {
-		ms.aliAccounts[awsAccount] = nil
+	for _, aliAccount := range aliAccounts {
+		ms.aliAccounts[aliAccount] = nil
 	}
 }
 
@@ -222,7 +222,7 @@ func (ms *DynamicFileMapStore) RoleMapping(arn string) (config.RoleMapping, erro
 	}
 }
 
-func (ms *DynamicFileMapStore) AWSAccount(id string) bool {
+func (ms *DynamicFileMapStore) AliAccount(id string) bool {
 	ms.mutex.RLock()
 	defer ms.mutex.RUnlock()
 	_, ok := ms.aliAccounts[id]
@@ -238,7 +238,7 @@ func (ms *DynamicFileMapStore) LogMapping() {
 	for _, role := range ms.roles {
 		logrus.Info(role)
 	}
-	for awsAccount, _ := range ms.aliAccounts {
-		logrus.Info(awsAccount)
+	for aliAccount, _ := range ms.aliAccounts {
+		logrus.Info(aliAccount)
 	}
 }

@@ -55,5 +55,5 @@ func (m *DynamicFileMapper) Map(canonicalARN string) (*config.IdentityMapping, e
 }
 
 func (m *DynamicFileMapper) IsAccountAllowed(accountID string) bool {
-	return m.AWSAccount(accountID)
+	return m.AliAccount(accountID)
 }

@@ -56,5 +56,5 @@ func (m *ConfigMapMapper) Map(canonicalARN string) (*config.IdentityMapping, err
 }
 
 func (m *ConfigMapMapper) IsAccountAllowed(accountID string) bool {
-	return m.AWSAccount(accountID)
+	return m.AlibabaCloudAccount(accountID)
 }

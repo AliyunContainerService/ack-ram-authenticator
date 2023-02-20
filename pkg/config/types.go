@@ -107,7 +107,7 @@ type Config struct {
 	// IAM ARN from these accounts automatically maps to the Kubernetes username.
 	AutoMappedAlibabaCloudAccounts []string
 
-	// ScrubbedAWSAccounts is a list of  accounts that the role ARNs and uids
+	// ScrubbedAliyunAccounts is a list of  accounts that the role ARNs and uids
 	// are scrubbed from server log statements
 	ScrubbedAliyunAccounts []string
 

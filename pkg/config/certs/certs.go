@@ -128,7 +128,7 @@ func selfSignedCertificate(address, hostname string, lifetime time.Duration) ([]
 	template := x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			CommonName: "aws-iam-authenticator",
+			CommonName: "ack-ram-authenticator",
 		},
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,

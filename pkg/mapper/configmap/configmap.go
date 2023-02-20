@@ -253,7 +253,7 @@ func (ms *MapStore) RoleMapping(arn string) (config.RoleMapping, error) {
 	return config.RoleMapping{}, RoleNotFound
 }
 
-func (ms *MapStore) AWSAccount(id string) bool {
+func (ms *MapStore) AlibabaCloudAccount(id string) bool {
 	ms.mutex.RLock()
 	defer ms.mutex.RUnlock()
 	_, ok := ms.alibabaCloudAccounts[id]

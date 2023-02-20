@@ -27,8 +27,6 @@ github.com/aliyun/credentials-go/credentials
 github.com/aliyun/credentials-go/credentials/request
 github.com/aliyun/credentials-go/credentials/response
 github.com/aliyun/credentials-go/credentials/utils
-# github.com/aws/aws-sdk-go v1.44.107
-## explicit
 # github.com/beorn7/perks v1.0.1
 github.com/beorn7/perks/quantile
 # github.com/cespare/xxhash/v2 v2.1.1
@@ -87,6 +85,7 @@ github.com/imdario/mergo
 # github.com/inconshreveable/mousetrap v1.0.0
 github.com/inconshreveable/mousetrap
 # github.com/jmespath/go-jmespath v0.4.0
+## explicit
 github.com/jmespath/go-jmespath
 # github.com/json-iterator/go v1.1.11
 github.com/json-iterator/go
@@ -151,6 +150,7 @@ github.com/subosito/gotenv
 # github.com/tjfoc/gmsm v1.3.2
 github.com/tjfoc/gmsm/sm3
 # golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
+## explicit
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
 golang.org/x/net/http/httpguts
@@ -480,8 +480,6 @@ k8s.io/client-go/util/homedir
 k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/retry
 k8s.io/client-go/util/workqueue
-# k8s.io/code-generator v0.22.1 => k8s.io/code-generator v0.22.2-rc.0
-## explicit
 # k8s.io/component-base v0.22.1 => k8s.io/component-base v0.22.0
 ## explicit
 k8s.io/component-base/featuregate
@@ -489,8 +487,6 @@ k8s.io/component-base/featuregate
 k8s.io/klog/v2
 # k8s.io/kube-openapi v0.0.0-20210421082810-95288971da7e
 k8s.io/kube-openapi/pkg/util/proto
-# k8s.io/kubernetes v1.22.0
-## explicit
 # k8s.io/sample-controller v0.22.1 => k8s.io/sample-controller v0.22.0
 ## explicit
 k8s.io/sample-controller/pkg/signals
@@ -498,9 +494,6 @@ k8s.io/sample-controller/pkg/signals
 k8s.io/utils/buffer
 k8s.io/utils/integer
 k8s.io/utils/trace
-# sigs.k8s.io/aws-iam-authenticator v0.6.0
-## explicit
-sigs.k8s.io/aws-iam-authenticator/pkg/config/certs
 # sigs.k8s.io/structured-merge-diff/v4 v4.1.2
 sigs.k8s.io/structured-merge-diff/v4/fieldpath
 sigs.k8s.io/structured-merge-diff/v4/schema

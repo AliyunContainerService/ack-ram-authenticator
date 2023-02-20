@@ -18,12 +18,12 @@ func makeStore() DynamicFileMapStore {
 	ms := DynamicFileMapStore{
 		users:       make(map[string]config.UserMapping),
 		roles:       make(map[string]config.RoleMapping),
-		awsAccounts: make(map[string]interface{}),
+		aliAccounts: make(map[string]interface{}),
 		filename:    "test.txt",
 	}
 	ms.users["arn:aws:iam::012345678912:user/matt"] = testUser
 	ms.roles["arn:aws:iam::012345678912:role/computer"] = testRole
-	ms.awsAccounts["123"] = nil
+	ms.aliAccounts["123"] = nil
 	return ms
 }
 
@@ -67,11 +67,11 @@ func TestRoleMapping(t *testing.T) {
 
 func TestAWSAccount(t *testing.T) {
 	ms := makeStore()
-	if !ms.AWSAccount("123") {
-		t.Errorf("Expected aws account '123' to be in accounts list: %v", ms.awsAccounts)
+	if !ms.AliAccount("123") {
+		t.Errorf("Expected aws account '123' to be in accounts list: %v", ms.aliAccounts)
 	}
-	if ms.AWSAccount("345") {
-		t.Errorf("Did not expect account '345' to be in accounts list: %v", ms.awsAccounts)
+	if ms.AliAccount("345") {
+		t.Errorf("Did not expect account '345' to be in accounts list: %v", ms.aliAccounts)
 	}
 }
 
@@ -178,7 +178,7 @@ func TestLoadDynamicFile(t *testing.T) {
 	if len(ms.users) != 0 {
 		t.Fatalf("testing failed as mapping should be empty since dynamic file doesn't exist")
 	}
-	if len(ms.awsAccounts) != 0 {
+	if len(ms.aliAccounts) != 0 {
 		t.Fatalf("testing failed as mapping should be empty since dynamic file doesn't exist")
 	}
 	ms.mutex.RUnlock()
@@ -199,7 +199,7 @@ func TestLoadDynamicFile(t *testing.T) {
 	if len(ms.users) == 0 {
 		t.Fatalf("testing failed as mapping should contain item since dynamic file has content")
 	}
-	if len(ms.awsAccounts) == 0 {
+	if len(ms.aliAccounts) == 0 {
 		t.Fatalf("testing failed as mapping should contain item since dynamic file has content")
 	}
 	ms.mutex.RUnlock()
@@ -211,11 +211,11 @@ func TestLoadDynamicFile(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to create expected DynamicFileMapper")
 	}
-	expectedUserMappings, expectedRoleMappings, expectedAwsAccounts, err := ParseMap(expectedMapStore.filename)
+	expectedUserMappings, expectedRoleMappings, expectedaliAccounts, err := ParseMap(expectedMapStore.filename)
 	if err != nil {
 		t.Errorf("failed to ParseMap expected DynamicFileMapper")
 	}
-	expectedMapStore.saveMap(expectedUserMappings, expectedRoleMappings, expectedAwsAccounts)
+	expectedMapStore.saveMap(expectedUserMappings, expectedRoleMappings, expectedaliAccounts)
 
 	time.Sleep(1 * time.Second)
 
@@ -233,7 +233,7 @@ func TestLoadDynamicFile(t *testing.T) {
 	if !reflect.DeepEqual(expectedMapStore.users, ms.users) {
 		t.Fatalf("testing failed as mapping doesn't update after file modification")
 	}
-	if !reflect.DeepEqual(expectedMapStore.awsAccounts, ms.awsAccounts) {
+	if !reflect.DeepEqual(expectedMapStore.aliAccounts, ms.aliAccounts) {
 		t.Fatalf("testing failed as mapping doesn't update after file modification")
 	}
 	ms.mutex.RUnlock()
@@ -250,7 +250,7 @@ func TestLoadDynamicFile(t *testing.T) {
 	if len(ms.users) != 0 {
 		t.Fatalf("testing failed as mapping doesn't update after file deletion")
 	}
-	if len(ms.awsAccounts) != 0 {
+	if len(ms.aliAccounts) != 0 {
 		t.Fatalf("testing failed as mapping doesn't update after file deletion")
 	}
 	ms.mutex.RUnlock()
@@ -270,7 +270,7 @@ func TestLoadDynamicFile(t *testing.T) {
 	if !reflect.DeepEqual(expectedMapStore.users, ms.users) {
 		t.Fatalf("testing failed as mapping doesn't update after file modification")
 	}
-	if !reflect.DeepEqual(expectedMapStore.awsAccounts, ms.awsAccounts) {
+	if !reflect.DeepEqual(expectedMapStore.aliAccounts, ms.aliAccounts) {
 		t.Fatalf("testing failed as mapping doesn't update after file modification")
 	}
 	ms.mutex.RUnlock()

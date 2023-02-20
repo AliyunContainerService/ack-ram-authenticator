@@ -100,10 +100,10 @@ func TestSSORoleMapping(t *testing.T) {
 
 func TestAliAccount(t *testing.T) {
 	ms := makeStore()
-	if !ms.AWSAccount("123") {
+	if !ms.AlibabaCloudAccount("123") {
 		t.Errorf("Expected aws account '123' to be in accounts list: %v", ms.alibabaCloudAccounts)
 	}
-	if ms.AWSAccount("345") {
+	if ms.AlibabaCloudAccount("345") {
 		t.Errorf("Did not expect account '345' to be in accounts list: %v", ms.alibabaCloudAccounts)
 	}
 }
@@ -160,7 +160,7 @@ var autoMappedAliAccountsYAML = `
 - 345
 `
 
-var updatedAWSAccountsYAML = `
+var updatedAlibabCloudAccountsYAML = `
 - 567
 `
 
@@ -190,11 +190,11 @@ func TestLoadConfigMap(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 
-	if !ms.AWSAccount("123") {
+	if !ms.AlibabaCloudAccount("123") {
 		t.Errorf("AWS Account '123' not in allowed accounts")
 	}
 
-	if !ms.AWSAccount("345") {
+	if !ms.AlibabaCloudAccount("345") {
 		t.Errorf("AWS Account '345' not in allowed accounts")
 	}
 
@@ -215,17 +215,17 @@ func TestLoadConfigMap(t *testing.T) {
 	updateData := make(map[string]string)
 	updateData["mapUsers"] = updatedUserMapping
 	updateData["mapRoles"] = updatedRoleMapping
-	updateData["mapAccounts"] = updatedAWSAccountsYAML
+	updateData["mapAccounts"] = updatedAlibabCloudAccountsYAML
 	watcher.Modify(&core_v1.ConfigMap{ObjectMeta: meta, Data: updateData})
 
 	//TODO: Sync without using sleep
 	time.Sleep(10 * time.Millisecond)
 
-	if ms.AWSAccount("345") {
+	if ms.AlibabaCloudAccount("345") {
 		t.Errorf("AWS Account '345' is in map after update")
 	}
 
-	if !ms.AWSAccount("567") {
+	if !ms.AlibabaCloudAccount("567") {
 		t.Errorf("AWS Account '567' is not in map after update")
 	}
 

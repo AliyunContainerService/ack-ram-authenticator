@@ -23,7 +23,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"sigs.k8s.io/aws-iam-authenticator/pkg/config/certs"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config/certs"
 )
 
 type KubeconfigParams struct {
@@ -54,7 +54,7 @@ func (p KubeconfigParams) WriteKubeconfig(outputPath string, t *template.Templat
 var webhookKubeconfigTemplate = template.Must(
 	template.New("webhook.kubeconfig").Option("missingkey=error").Parse(`
 clusters:
-  - name: aws-iam-authenticator
+  - name: ack-ram-authenticator
     cluster:
       certificate-authority-data: {{.CertificateAuthorityBase64}}
       server: {{.ServerURL}}
@@ -65,6 +65,6 @@ current-context: webhook
 contexts:
 - name: webhook
   context:
-    cluster: aws-iam-authenticator
+    cluster: ack-ram-authenticator
     user: apiserver
 `))

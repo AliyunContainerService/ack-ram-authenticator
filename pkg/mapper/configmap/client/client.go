@@ -72,7 +72,7 @@ func (cli *client) add(role *config.RoleMapping, user *config.UserMapping) (cm *
 
 		data := cm.Data
 
-		userMappings, roleMappings, awsAccounts, err := configmap.ParseMap(data)
+		userMappings, roleMappings, aliAccounts, err := configmap.ParseMap(data)
 		if err != nil {
 			return fmt.Errorf("failed to parse configmap %v", err)
 		}
@@ -104,7 +104,7 @@ func (cli *client) add(role *config.RoleMapping, user *config.UserMapping) (cm *
 			userMappings = append(userMappings, *user)
 		}
 
-		data, err = configmap.EncodeMap(userMappings, roleMappings, awsAccounts)
+		data, err = configmap.EncodeMap(userMappings, roleMappings, aliAccounts)
 		if err != nil {
 			return err
 		}
