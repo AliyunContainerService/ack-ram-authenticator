@@ -298,9 +298,8 @@ func (h *handler) authenticateEndpoint(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	uid := fmt.Sprintf("aws-iam-authenticator:administrative:%s", username)
+	uid := fmt.Sprintf("ack-ram-authenticator:administrative:%s", username)
 	if h.isLoggableIdentity(identity) {
-		// use a prefixed UID that includes the AWS account ID and AWS user ID ("AROAAAAAAAAAAAAAAAAAA")
 		uid = fmt.Sprintf("ack-ram-authenticator:%s:%s", identity.AccountID, identity.UserID)
 	}
 
@@ -315,10 +314,13 @@ func (h *handler) authenticateEndpoint(w http.ResponseWriter, req *http.Request)
 
 	userExtra := map[string]authenticationv1beta1.ExtraValue{}
 	if h.isLoggableIdentity(identity) {
+		log.Infof("begin to config user extra info")
 		userExtra["arn"] = authenticationv1beta1.ExtraValue{identity.ARN}
 		userExtra["canonicalArn"] = authenticationv1beta1.ExtraValue{identity.CanonicalARN}
 		userExtra["sessionName"] = authenticationv1beta1.ExtraValue{identity.SessionName}
 	}
+
+	log.Infof("userExtra is %v", userExtra)
 
 	json.NewEncoder(w).Encode(authenticationv1beta1.TokenReview{
 		Status: authenticationv1beta1.TokenReviewStatus{
