@@ -38,7 +38,7 @@ var addCmd = &cobra.Command{
 
 var addUserCmd = &cobra.Command{
 	Use:   "user",
-	Short: "add a user entity to an existing aws-auth configmap, not for CRD/file backends",
+	Short: "add a user entity to an existing alibabacloud-auth configmap, not for CRD/file backends",
 	Long:  "NOTE: this does not currently support the CRD and file backends",
 	Run: func(cmd *cobra.Command, args []string) {
 		if userARN == "" || userName == "" || len(groups) == 0 {
@@ -70,7 +70,7 @@ var addUserCmd = &cobra.Command{
 
 var addRoleCmd = &cobra.Command{
 	Use:   "role",
-	Short: "add a role entity to an existing aws-auth configmap, not for CRD/file backends",
+	Short: "add a role entity to an existing alibabacloud-auth configmap, not for CRD/file backends",
 	Long:  "NOTE: this does not currently support the CRD and file backends",
 	Run: func(cmd *cobra.Command, args []string) {
 		if roleARN == "" || userName == "" || len(groups) == 0 {

@@ -20,7 +20,9 @@ import (
 	"fmt"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/metrics"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/server"
+	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/sample-controller/pkg/signals"
 	"strings"
 
@@ -40,6 +42,7 @@ var serverCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		var err error
 		fmt.Printf("Authenticator Version: %q, %q\n", pkg.Version, pkg.CommitID)
+		metrics.InitMetrics(prometheus.DefaultRegisterer)
 		stopCh := signals.SetupSignalHandler()
 
 		cfg, err := getConfig()

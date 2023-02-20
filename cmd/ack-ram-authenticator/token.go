@@ -78,7 +78,7 @@ func init() {
 	tokenCmd.Flags().String("region", "", "AlibabaCloud region to use for assume role calls")
 	tokenCmd.Flags().StringP("role", "r", "", "Assume an RAM Role ARN before signing this token")
 	tokenCmd.Flags().Bool("token-only", false, "Return only the token for use with Bearer token based tools")
-	tokenCmd.Flags().Bool("cache", false, "Cache the credential on disk until it expires. Uses the aws profile specified by AWS_PROFILE or the default profile.")
+	tokenCmd.Flags().Bool("cache", false, "Cache the credential on disk until it expires. Uses the alibabacloud profile specified by ALIBABA_CLOUD_CREDENTIALS_PROFILE or the default profile.")
 	viper.BindPFlag("region", tokenCmd.Flags().Lookup("region"))
 	viper.BindPFlag("role", tokenCmd.Flags().Lookup("role"))
 	viper.BindPFlag("tokenOnly", tokenCmd.Flags().Lookup("token-only"))

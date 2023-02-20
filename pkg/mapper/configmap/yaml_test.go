@@ -147,7 +147,7 @@ func TestConfigMap(t *testing.T) {
 			ms.mutex.Unlock()
 
 			for accountID, eok := range tt.expectedAWSAccounts {
-				ok := ms.AWSAccount(strings.ToLower(accountID))
+				ok := ms.AlibabaCloudAccount(strings.ToLower(accountID))
 				if eok != ok {
 					t.Errorf("expected account %s %v, got %v", accountID, eok, ok)
 				}

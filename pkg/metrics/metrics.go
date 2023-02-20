@@ -34,11 +34,10 @@ func Get() Metrics {
 
 // Metrics are handles to the collectors for prometheus for the various metrics we are tracking.
 type Metrics struct {
-	ConfigMapWatchFailures       prometheus.Counter
-	Latency                      *prometheus.HistogramVec
-	EC2DescribeInstanceCallCount prometheus.Counter
-	StsConnectionFailure         prometheus.Counter
-	StsResponses                 *prometheus.CounterVec
+	ConfigMapWatchFailures prometheus.Counter
+	Latency                *prometheus.HistogramVec
+	StsConnectionFailure   prometheus.Counter
+	StsResponses           *prometheus.CounterVec
 }
 
 func createMetrics(reg prometheus.Registerer) Metrics {
@@ -49,7 +48,7 @@ func createMetrics(reg prometheus.Registerer) Metrics {
 			prometheus.CounterOpts{
 				Namespace: Namespace,
 				Name:      "configmap_watch_failures_total",
-				Help:      "EKS Configmap watch failures",
+				Help:      "ACK Configmap watch failures",
 			},
 		),
 		StsConnectionFailure: factory.NewCounter(
@@ -73,13 +72,6 @@ func createMetrics(reg prometheus.Registerer) Metrics {
 				Help:      "Authenticate call latency",
 			},
 			[]string{"result"},
-		),
-		EC2DescribeInstanceCallCount: factory.NewCounter(
-			prometheus.CounterOpts{
-				Namespace: Namespace,
-				Name:      "ec2_describe_instances_calls_total",
-				Help:      "Number of EC2 describe instances calls.",
-			},
 		),
 	}
 }
