@@ -365,7 +365,7 @@ func (v tokenVerifier) Verify(token string) (*Identity, error) {
 	}
 
 	// TODO: this may need to be a constant-time base64 decoding
-	tokenBytes, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(token, v1Prefix))
+	tokenBytes, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(token, v1Prefix))
 	if err != nil {
 		return nil, FormatError{err.Error()}
 	}
@@ -533,6 +533,6 @@ func (g generator) GetWithSTS(clusterID string, stsClient *sts.Client) (Token, e
 	// Set token expiration to 1 minute before the presigned URL expires for some cushion
 	tokenExpiration := time.Now().Local().Add(presignedURLExpiration - 1*time.Minute)
 	// TODO: this may need to be a constant-time base64 encoding
-	return Token{v1Prefix + base64.RawURLEncoding.EncodeToString([]byte(getCallerIdentityURL)), tokenExpiration}, nil
+	return Token{v1Prefix + base64.StdEncoding.EncodeToString([]byte(getCallerIdentityURL)), tokenExpiration}, nil
 
 }
