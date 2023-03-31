@@ -27,7 +27,7 @@ rules:
 - apiGroups:
   - ramauthenticator.k8s.alibabacloud
   resources:
-  - iamidentitymappings
+  - ramidentitymappings
   verbs:
   - get
   - list
@@ -35,7 +35,7 @@ rules:
 - apiGroups:
   - ramauthenticator.k8s.alibabacloud
   resources:
-  - iamidentitymappings/status
+  - ramidentitymappings/status
   verbs:
   - patch
   - update

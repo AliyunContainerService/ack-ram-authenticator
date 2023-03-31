@@ -32,8 +32,8 @@ type IdentityMapping struct {
 // list of Kubernetes groups. The username and groups are specified as templates
 // that may optionally contain two template parameters:
 //
-//  1) "{{AccountID}}" is the 16 digit ID.
-//  2) "{{SessionName}}" is the role session name.
+//  1. "{{AccountID}}" is the 16 digit ID.
+//  2. "{{SessionName}}" is the role session name.
 //
 // The meaning of SessionName depends on the type of entity assuming the role.
 // In the case of an ECS instance role this will be the ECS instance ID. In the
@@ -104,7 +104,7 @@ type Config struct {
 	UserMappings []UserMapping
 
 	// AutoMappedAlibabaCloudAccounts is a list of Alibaba Cloud accounts that are allowed without an explicit user/role mapping.
-	// IAM ARN from these accounts automatically maps to the Kubernetes username.
+	// RAM ARN from these accounts automatically maps to the Kubernetes username.
 	AutoMappedAlibabaCloudAccounts []string
 
 	// ScrubbedAliyunAccounts is a list of  accounts that the role ARNs and uids

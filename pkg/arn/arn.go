@@ -13,7 +13,7 @@ import (
 // Supported RAM resources are:
 //   * RAM user: acs:ram::123456789012:user/Bob
 //   * RAM role: acs:ram::123456789012:role/Default
-//   * RAM Assumed role: acs:ram::123456789012:assumed-role/Default
+//   * RAM Assumed role: acs:ram::123456789012:assumed-role/Default/tester
 
 // Canonicalize canonicalize a string
 func Canonicalize(arn string) (string, error) {
@@ -38,6 +38,9 @@ func Canonicalize(arn string) (string, error) {
 			if len(parts) < 3 {
 				return "", fmt.Errorf("assumed-role arn '%s' does not have a role", arn)
 			}
+			fmt.Println(parts[2])
+			fmt.Println(parts[1 : len(parts)-1])
+
 			role := strings.Join(parts[1:len(parts)-1], "/")
 			return fmt.Sprintf("acs:ram::%s:role/%s", parsed.AccountID, role), nil
 		default:
