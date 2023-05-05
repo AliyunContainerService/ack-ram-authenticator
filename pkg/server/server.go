@@ -28,7 +28,9 @@ import (
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/file"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/metrics"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/utils"
+	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/client-go/tools/clientcmd"
 	"log"
 	"net/http"
 	"regexp"
@@ -73,6 +75,13 @@ type handler struct {
 func New(cfg config.Config, stopCh <-chan struct{}) *Server {
 	c := &Server{
 		Config: cfg,
+	}
+	//ensure crd
+	k8sconfig, err := clientcmd.BuildConfigFromFlags(cfg.Master, cfg.Kubeconfig)
+	apiExtClientSet := apiextcs.NewForConfigOrDie(k8sconfig)
+	err = crd.SyncCRD(apiExtClientSet)
+	if err != nil {
+		logrus.Fatalf("failed to sync required crd: %v", err)
 	}
 
 	mappers, err := BuildMapperChain(cfg)
