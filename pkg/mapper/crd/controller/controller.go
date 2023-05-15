@@ -221,22 +221,11 @@ func (c *Controller) syncHandler(key string) (err error) {
 		}
 
 		ramIdentityMappingCopy.Status.CanonicalARN = canonicalizedARN
-		uu, err := c.ramclientset.RamauthenticatorV1alpha1().RAMIdentityMappings().UpdateStatus(context.TODO(), ramIdentityMappingCopy, metav1.UpdateOptions{})
+		_, err = c.ramclientset.RamauthenticatorV1alpha1().RAMIdentityMappings().UpdateStatus(context.TODO(), ramIdentityMappingCopy, metav1.UpdateOptions{})
 		if err != nil {
 			logrus.Infof("syncHandler failed to udpate status, err %v, copy %v", err, ramIdentityMappingCopy)
-
-			cc, err := c.ramclientset.RamauthenticatorV1alpha1().RAMIdentityMappings().List(context.TODO(), metav1.ListOptions{})
-			logrus.Infof("syncHandler try list length %v", len(cc.Items))
-			for _, ccc := range cc.Items {
-				logrus.Infof("syncHandler ccc item name %v, kind %v", ccc.Name, ccc.Kind)
-
-			}
-			aa, err := c.ramclientset.RamauthenticatorV1alpha1().RAMIdentityMappings().Get(context.TODO(), ramIdentityMappingCopy.Name, metav1.GetOptions{})
-			logrus.Infof("syncHandler try get target %v", len(aa.Spec.ARN))
-
 			return err
 		}
-		logrus.Infof("syncHandler uuuuuuuuuuuu  %v", uu.Status.CanonicalARN)
 	}
 
 	c.recorder.Event(ramIdentityMapping, corev1.EventTypeNormal, SuccessSynced, IdentitySynced)

@@ -92,6 +92,9 @@ func getRamIdentityMappingCRD() apiext.CustomResourceDefinition {
 							},
 						},
 					},
+					Subresources: &apiext.CustomResourceSubresources{
+						Status: &apiext.CustomResourceSubresourceStatus{},
+					},
 				},
 			},
 		},
