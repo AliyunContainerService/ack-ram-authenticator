@@ -374,7 +374,6 @@ func (h *handler) doMapping(identity *token.Identity) (string, []string, error) 
 	}
 	return "", nil, mapper.ErrNotMapped
 }
-
 func (h *handler) renderTemplates(mapping config.IdentityMapping, identity *token.Identity) (string, []string, error) {
 	var username string
 	groups := []string{}

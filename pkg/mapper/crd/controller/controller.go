@@ -16,6 +16,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/labels"
 	"strings"
 	"time"
 
@@ -193,9 +194,15 @@ func (c *Controller) syncHandler(key string) (err error) {
 		utilruntime.HandleError(fmt.Errorf("invalid resource key %s", key))
 		return nil
 	}
+	logrus.Infof("syncHandler with key %s", name)
 
 	ramIdentityMapping, err := c.ramMappingLister.Get(name)
 	if err != nil {
+		var labelSel labels.Selector
+		xxx, err := c.ramMappingLister.List(labelSel)
+		logrus.Infof("syncHandler err, list size is %v", len(xxx))
+		logrus.Infof("syncHandler err, ramMappingsSynced is %v ramMappingsIndexKey %v", c.ramMappingsSynced, c.ramMappingsIndex.ListKeys())
+
 		if errors.IsNotFound(err) {
 			utilruntime.HandleError(fmt.Errorf("ram identity mapping %s no longer exists", key))
 			return nil
@@ -209,14 +216,27 @@ func (c *Controller) syncHandler(key string) (err error) {
 
 		canonicalizedARN, err := arn.Canonicalize(strings.ToLower(ramIdentityMapping.Spec.ARN))
 		if err != nil {
+			logrus.Infof("canonicalizedARN err %v", err)
 			return err
 		}
 
 		ramIdentityMappingCopy.Status.CanonicalARN = canonicalizedARN
-		_, err = c.ramclientset.RamauthenticatorV1alpha1().RAMIdentityMappings().UpdateStatus(context.TODO(), ramIdentityMappingCopy, metav1.UpdateOptions{})
+		uu, err := c.ramclientset.RamauthenticatorV1alpha1().RAMIdentityMappings().UpdateStatus(context.TODO(), ramIdentityMappingCopy, metav1.UpdateOptions{})
 		if err != nil {
+			logrus.Infof("syncHandler failed to udpate status, err %v, copy %v", err, ramIdentityMappingCopy)
+
+			cc, err := c.ramclientset.RamauthenticatorV1alpha1().RAMIdentityMappings().List(context.TODO(), metav1.ListOptions{})
+			logrus.Infof("syncHandler try list length %v", len(cc.Items))
+			for _, ccc := range cc.Items {
+				logrus.Infof("syncHandler ccc item name %v, kind %v", ccc.Name, ccc.Kind)
+
+			}
+			aa, err := c.ramclientset.RamauthenticatorV1alpha1().RAMIdentityMappings().Get(context.TODO(), ramIdentityMappingCopy.Name, metav1.GetOptions{})
+			logrus.Infof("syncHandler try get target %v", len(aa.Spec.ARN))
+
 			return err
 		}
+		logrus.Infof("syncHandler uuuuuuuuuuuu  %v", uu.Status.CanonicalARN)
 	}
 
 	c.recorder.Event(ramIdentityMapping, corev1.EventTypeNormal, SuccessSynced, IdentitySynced)
@@ -227,6 +247,7 @@ func (c *Controller) syncHandler(key string) (err error) {
 func (c *Controller) enqueueRAMIdentityMapping(obj interface{}) {
 	var key string
 	var err error
+
 	if key, err = cache.MetaNamespaceKeyFunc(obj); err != nil {
 		utilruntime.HandleError(err)
 		return

@@ -226,12 +226,12 @@ func getKey(ramidentity *ramauthenticatorv1alpha1.RAMIdentityMapping, t *testing
 
 func TestRAMIdentityMappingCreation(t *testing.T) {
 	f := newFixture(t)
-	ramidentity := newRAMIdentityMapping("test", "arn:acs:ram::XXXXXXXXXXXX:user/AuthorizedUser", "user-1")
+	ramidentity := newRAMIdentityMapping("test", "acs:ram::XXXXXXXXXXXX:user/AuthorizedUser", "user-1")
 	f.ramIdentityLister = append(f.ramIdentityLister, ramidentity)
 	f.objects = append(f.objects, ramidentity)
 
 	// Update will always add these parameters
-	canonicalizedArn := "arn:acs:ram::xxxxxxxxxxxx:user/authorizeduser"
+	canonicalizedArn := "acs:ram::xxxxxxxxxxxx:user/authorizeduser"
 	ramidentity.Status = ramauthenticatorv1alpha1.RAMIdentityMappingStatus{
 		CanonicalARN: canonicalizedArn,
 	}
