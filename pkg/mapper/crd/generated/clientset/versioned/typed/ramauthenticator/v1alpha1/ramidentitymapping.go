@@ -65,7 +65,7 @@ func newRAMIdentityMappings(c *RamauthenticatorV1alpha1Client) *rAMIdentityMappi
 func (c *rAMIdentityMappings) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.RAMIdentityMapping, err error) {
 	result = &v1alpha1.RAMIdentityMapping{}
 	err = c.client.Get().
-		Resource("rAMIdentityMappings").
+		Resource("ramidentitymappings").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
 		Do(ctx).
@@ -81,7 +81,7 @@ func (c *rAMIdentityMappings) List(ctx context.Context, opts v1.ListOptions) (re
 	}
 	result = &v1alpha1.RAMIdentityMappingList{}
 	err = c.client.Get().
-		Resource("rAMIdentityMappings").
+		Resource("ramidentitymappings").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Do(ctx).
@@ -97,7 +97,7 @@ func (c *rAMIdentityMappings) Watch(ctx context.Context, opts v1.ListOptions) (w
 	}
 	opts.Watch = true
 	return c.client.Get().
-		Resource("rAMIdentityMappings").
+		Resource("ramidentitymappings").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Watch(ctx)
@@ -107,7 +107,7 @@ func (c *rAMIdentityMappings) Watch(ctx context.Context, opts v1.ListOptions) (w
 func (c *rAMIdentityMappings) Create(ctx context.Context, rAMIdentityMapping *v1alpha1.RAMIdentityMapping, opts v1.CreateOptions) (result *v1alpha1.RAMIdentityMapping, err error) {
 	result = &v1alpha1.RAMIdentityMapping{}
 	err = c.client.Post().
-		Resource("rAMIdentityMappings").
+		Resource("ramidentitymappings").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(rAMIdentityMapping).
 		Do(ctx).
@@ -119,7 +119,7 @@ func (c *rAMIdentityMappings) Create(ctx context.Context, rAMIdentityMapping *v1
 func (c *rAMIdentityMappings) Update(ctx context.Context, rAMIdentityMapping *v1alpha1.RAMIdentityMapping, opts v1.UpdateOptions) (result *v1alpha1.RAMIdentityMapping, err error) {
 	result = &v1alpha1.RAMIdentityMapping{}
 	err = c.client.Put().
-		Resource("rAMIdentityMappings").
+		Resource("ramidentitymappings").
 		Name(rAMIdentityMapping.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(rAMIdentityMapping).
@@ -133,7 +133,7 @@ func (c *rAMIdentityMappings) Update(ctx context.Context, rAMIdentityMapping *v1
 func (c *rAMIdentityMappings) UpdateStatus(ctx context.Context, rAMIdentityMapping *v1alpha1.RAMIdentityMapping, opts v1.UpdateOptions) (result *v1alpha1.RAMIdentityMapping, err error) {
 	result = &v1alpha1.RAMIdentityMapping{}
 	err = c.client.Put().
-		Resource("rAMIdentityMappings").
+		Resource("ramidentitymappings").
 		Name(rAMIdentityMapping.Name).
 		SubResource("status").
 		VersionedParams(&opts, scheme.ParameterCodec).
@@ -146,7 +146,7 @@ func (c *rAMIdentityMappings) UpdateStatus(ctx context.Context, rAMIdentityMappi
 // Delete takes name of the rAMIdentityMapping and deletes it. Returns an error if one occurs.
 func (c *rAMIdentityMappings) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	return c.client.Delete().
-		Resource("rAMIdentityMappings").
+		Resource("ramidentitymappings").
 		Name(name).
 		Body(&opts).
 		Do(ctx).
@@ -160,7 +160,7 @@ func (c *rAMIdentityMappings) DeleteCollection(ctx context.Context, opts v1.Dele
 		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
-		Resource("rAMIdentityMappings").
+		Resource("ramidentitymappings").
 		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
 		Body(&opts).
@@ -172,7 +172,7 @@ func (c *rAMIdentityMappings) DeleteCollection(ctx context.Context, opts v1.Dele
 func (c *rAMIdentityMappings) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.RAMIdentityMapping, err error) {
 	result = &v1alpha1.RAMIdentityMapping{}
 	err = c.client.Patch(pt).
-		Resource("rAMIdentityMappings").
+		Resource("ramidentitymappings").
 		Name(name).
 		SubResource(subresources...).
 		VersionedParams(&opts, scheme.ParameterCodec).
