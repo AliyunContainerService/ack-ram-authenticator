@@ -13,7 +13,6 @@ import (
 	clientset "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/clientset/versioned"
 	informers "github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/crd/generated/informers/externalversions"
 	"github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -91,31 +90,31 @@ func (m *CRDMapper) Start(stopCh <-chan struct{}) error {
 
 func (m *CRDMapper) Map(canonicalARN string) (*config.IdentityMapping, error) {
 	canonicalARN = strings.ToLower(canonicalARN)
-	// support regex matching in ramidentity definition
-	if strings.Contains(canonicalARN, "*") {
-		logrus.Infof("request canonicalARN %s contains wildcard char", canonicalARN)
-		//TODO this is list in cache store, not sure about the permformance
-		ramIdentityList, err := m.ramInformerFactory.Ramauthenticator().V1alpha1().RAMIdentityMappings().Lister().List(labels.Everything())
-		if err != nil {
-			logrus.Errorf("failed to list ramidentity in cluster, err %v", err)
-			return nil, mapper.ErrNotMapped
-		}
-		for _, ri := range ramIdentityList {
-			matched, err := regexp.MatchString(ri.Status.CanonicalARN, canonicalARN)
-			if err != nil {
-				logrus.Errorf("check canonicalARN with pattern %s failed, error: %v", err)
-				return nil, mapper.ErrNotMapped
-			}
-			if matched {
-				logrus.Infof("found matching identity %v", ri)
-				return &config.IdentityMapping{
-					IdentityARN: canonicalARN,
-					Username:    ri.Spec.Username,
-					Groups:      ri.Spec.Groups,
-				}, nil
-			}
-		}
-	}
+
+	//if strings.Contains(canonicalARN, "*") {
+	//	logrus.Infof("request canonicalARN %s contains wildcard char", canonicalARN)
+	//	//TODO this is list in cache store, not sure about the permformance
+	//	ramIdentityList, err := m.ramInformerFactory.Ramauthenticator().V1alpha1().RAMIdentityMappings().Lister().List(labels.Everything())
+	//	if err != nil {
+	//		logrus.Errorf("failed to list ramidentity in cluster, err %v", err)
+	//		return nil, mapper.ErrNotMapped
+	//	}
+	//	for _, ri := range ramIdentityList {
+	//		matched, err := regexp.MatchString(ri.Status.CanonicalARN, canonicalARN)
+	//		if err != nil {
+	//			logrus.Errorf("check canonicalARN with pattern %s failed, error: %v", err)
+	//			return nil, mapper.ErrNotMapped
+	//		}
+	//		if matched {
+	//			logrus.Infof("found matching identity %v", ri)
+	//			return &config.IdentityMapping{
+	//				IdentityARN: canonicalARN,
+	//				Username:    ri.Spec.Username,
+	//				Groups:      ri.Spec.Groups,
+	//			}, nil
+	//		}
+	//	}
+	//}
 
 	var ramidentity *ramauthenticatorv1alpha1.RAMIdentityMapping
 	var ok bool
@@ -138,6 +137,24 @@ func (m *CRDMapper) Map(canonicalARN string) (*config.IdentityMapping, error) {
 				Username:    ramidentity.Spec.Username,
 				Groups:      ramidentity.Spec.Groups,
 			}, nil
+		}
+	} else {
+		//check if matching wild mapping definition in wild mapping cache
+		wildMappingCache := m.WildMappingCache.Load().(controller.WildMappingMap)
+		for _, ri := range wildMappingCache {
+			matched, err := regexp.MatchString(ri.Status.CanonicalARN, canonicalARN)
+			if err != nil {
+				logrus.Errorf("check canonicalARN with pattern %s failed, error: %v", err)
+				return nil, mapper.ErrNotMapped
+			}
+			if matched {
+				logrus.Infof("found matching identity with wild pattern %s", ri.Status.CanonicalARN)
+				return &config.IdentityMapping{
+					IdentityARN: canonicalARN,
+					Username:    ri.Spec.Username,
+					Groups:      ri.Spec.Groups,
+				}, nil
+			}
 		}
 	}
 

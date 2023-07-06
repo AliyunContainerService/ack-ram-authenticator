@@ -92,7 +92,7 @@ type Config struct {
 
 	// StateDir is the directory where generated certificates and private keys
 	// will be stored. You want these persisted between runs so that your API
-	// server webhook configuration doesn't change on restart.
+	// server webhook config]uration doesn't change on restart.
 	StateDir string
 
 	// RoleMappings is a list of mappings from Alibaba Cloud RAM Role to

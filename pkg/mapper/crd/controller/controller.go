@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"k8s.io/apimachinery/pkg/labels"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -71,7 +73,13 @@ type Controller struct {
 	workqueue workqueue.RateLimitingInterface
 	// recorder implements the Event recorder interface for logging events.
 	recorder record.EventRecorder
+
+	// WildMappingCache is a lru cache for custom user defined mapping with wild character
+	WildMappingCache     atomic.Value
+	WildMappingCacheLock sync.Mutex
 }
+
+type WildMappingMap map[string]*ramauthenticatorv1alpha1.RAMIdentityMapping
 
 // New will initialize a default controller object
 func New(
@@ -90,12 +98,14 @@ func New(
 	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: controllerAgentName})
 
 	controller := &Controller{
-		kubeclientset:     kubeclientset,
-		ramclientset:      ramclientset,
-		ramMappingLister:  ramMappingInformer.Lister(),
-		ramMappingsSynced: ramMappingInformer.Informer().HasSynced,
-		workqueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "RAMIdentityMappings"),
-		recorder:          recorder,
+		kubeclientset:        kubeclientset,
+		ramclientset:         ramclientset,
+		ramMappingLister:     ramMappingInformer.Lister(),
+		ramMappingsSynced:    ramMappingInformer.Informer().HasSynced,
+		workqueue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "RAMIdentityMappings"),
+		recorder:             recorder,
+		WildMappingCache:     atomic.Value{},
+		WildMappingCacheLock: sync.Mutex{},
 	}
 
 	logrus.Info("setting up event handlers")
@@ -107,6 +117,9 @@ func New(
 		AddFunc: controller.enqueueRAMIdentityMapping,
 		UpdateFunc: func(old, new interface{}) {
 			controller.enqueueRAMIdentityMapping(new)
+		},
+		DeleteFunc: func(obj interface{}) {
+			controller.removeWildMapping()
 		},
 	})
 
@@ -134,6 +147,7 @@ func (c *Controller) Run(threadiness int, stopCh <-chan struct{}) error {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
 
+	c.WildMappingCache.Store(WildMappingMap{})
 	logrus.Info("starting workers")
 	for i := 0; i < threadiness; i++ {
 		go wait.Until(c.runWorker, time.Second, stopCh)
@@ -188,6 +202,35 @@ func (c *Controller) processNextWorkItem() bool {
 	return true
 }
 
+func (c *Controller) removeWildMapping() {
+	allMapping, err := c.ramMappingLister.List(labels.Everything())
+	if err != nil {
+		utilruntime.HandleError(err)
+		return
+	}
+
+	c.WildMappingCacheLock.Lock()
+	defer c.WildMappingCacheLock.Unlock()
+
+	wildCacheMap := c.WildMappingCache.Load().(WildMappingMap)
+	// Copy because we cannot write to storageMap without a race
+	wildCacheMapp2 := make(WildMappingMap)
+	for _, mapping := range allMapping {
+		if !hasWildDedinedInMappingArn(mapping.Status.CanonicalARN) {
+			continue
+		}
+		if _, ok := wildCacheMap[mapping.Name]; ok {
+			wildCacheMapp2[mapping.Name] = wildCacheMap[mapping.Name]
+		}
+	}
+	c.WildMappingCache.Store(wildCacheMapp2)
+	for key := range wildCacheMap {
+		if _, ok := wildCacheMapp2[key]; !ok {
+			logrus.Infof("mapping instance %v has removed from WildMappingCache", key)
+		}
+	}
+}
+
 func (c *Controller) syncHandler(key string) (err error) {
 	_, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -198,11 +241,6 @@ func (c *Controller) syncHandler(key string) (err error) {
 
 	ramIdentityMapping, err := c.ramMappingLister.Get(name)
 	if err != nil {
-		var labelSel labels.Selector
-		xxx, err := c.ramMappingLister.List(labelSel)
-		logrus.Infof("syncHandler err, list size is %v", len(xxx))
-		logrus.Infof("syncHandler err, ramMappingsSynced is %v ramMappingsIndexKey %v", c.ramMappingsSynced, c.ramMappingsIndex.ListKeys())
-
 		if errors.IsNotFound(err) {
 			utilruntime.HandleError(fmt.Errorf("ram identity mapping %s no longer exists", key))
 			return nil
@@ -226,6 +264,17 @@ func (c *Controller) syncHandler(key string) (err error) {
 			logrus.Infof("syncHandler failed to udpate status, err %v, copy %v", err, ramIdentityMappingCopy)
 			return err
 		}
+		//check if need refresh wild mapping cache store
+		if hasWildDedinedInMappingArn(canonicalizedARN) {
+			c.WildMappingCacheLock.Lock()
+			defer c.WildMappingCacheLock.Unlock()
+			//refresh cache with created or updated ram identity mapping
+			wildCacheMap := c.WildMappingCache.Load().(WildMappingMap)
+			storageMap2 := wildCacheMap.clone()
+			storageMap2[ramIdentityMappingCopy.Name] = ramIdentityMappingCopy
+			c.WildMappingCache.Store(storageMap2)
+			logrus.Infof("syncHandler has add a wild mapping with arn %s into cache map", canonicalizedARN)
+		}
 	}
 
 	c.recorder.Event(ramIdentityMapping, corev1.EventTypeNormal, SuccessSynced, IdentitySynced)
@@ -242,6 +291,27 @@ func (c *Controller) enqueueRAMIdentityMapping(obj interface{}) {
 		return
 	}
 	c.workqueue.Add(key)
+}
+
+func (in WildMappingMap) clone() WildMappingMap {
+	if in == nil {
+		return nil
+	}
+	out := make(WildMappingMap, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+//wild character including '?' and '*'
+//? matches exactly one occurrence of any character.
+//* matches arbitrary many (including zero) occurrences of any character.
+func hasWildDedinedInMappingArn(arn string) bool {
+	if strings.ContainsAny(arn, "?*") {
+		return true
+	}
+	return false
 }
 
 // IndexRAMIdentityMappingByCanonicalArn collects the information for the additional indexer used for finding identities
