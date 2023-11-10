@@ -421,7 +421,11 @@ func (v tokenVerifier) Verify(token string) (*Identity, error) {
 	defer response.Body.Close()
 
 	if response.StatusCode != 200 {
-		return nil, NewSTSError(fmt.Sprintf("error from RAM (expected 200, got %d)", response.StatusCode))
+		responseBytes, err := ioutil.ReadAll(response.Body)
+		if err != nil {
+			return nil, NewSTSError(fmt.Sprintf("error from RAM (expected 200, got %d, err %v)", response.StatusCode, response.Body, err))
+		}
+		return nil, NewSTSError(fmt.Sprintf("error from RAM (expected 200, got %d, body %s, err %v)", response.StatusCode, string(responseBytes), err))
 	}
 
 	responseBody, err := ioutil.ReadAll(response.Body)
