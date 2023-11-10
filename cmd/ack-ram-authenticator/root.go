@@ -83,6 +83,7 @@ func initConfig() {
 func getConfig() (config.Config, error) {
 	cfg := config.Config{
 		ClusterID:              viper.GetString("clusterID"),
+		Region:                 viper.GetString("server.region"),
 		HostPort:               viper.GetInt("server.port"),
 		Hostname:               viper.GetString("server.hostname"),
 		GenerateKubeconfigPath: viper.GetString("server.generateKubeconfig"),

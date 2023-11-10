@@ -91,5 +91,11 @@ func init() {
 		"Port to bind the server to listen to")
 	viper.BindPFlag("server.port", serverCmd.Flags().Lookup("port"))
 
+	serverCmd.Flags().String(
+		"region",
+		"",
+		"current region")
+	viper.BindPFlag("server.region", serverCmd.Flags().Lookup("region"))
+
 	rootCmd.AddCommand(serverCmd)
 }

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/arn"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/utils"
+	"github.com/AliyunContainerService/ack-ram-tool/pkg/credentials/provider"
 	openapi "github.com/alibabacloud-go/darabonba-openapi/client"
 	sts "github.com/alibabacloud-go/sts-20150401/client"
 	"github.com/alibabacloud-go/tea/tea"
@@ -75,6 +76,7 @@ const (
 	// The actual token expiration (presigned STS urls are valid for 15 minutes after timestamp in query param Timestamp).
 	presignedURLExpiration = 15 * time.Minute
 	v1Prefix               = "k8s-ack-v1."
+	v2Prefix               = "k8s-ack-v2."
 	maxTokenLenBytes       = 1024 * 4
 	hostRegexp             = `^sts(\.[a-z1-9\-]+)?\.aliyuncs\.com(\.cn)?$`
 	stsSignVersion         = "1.0"
@@ -145,6 +147,17 @@ var parameterWhitelist = map[string]bool{
 	"rolearn":          true,
 	"securitytoken":    true,
 	"clusterid":        true,
+
+	// v2
+	"x-acs-action":          true,
+	"x-acs-version":         true,
+	"authorization":         true,
+	"x-acs-signature-nonce": true,
+	"x-acs-date":            true,
+	"x-acs-content-sha256":  true,
+	"x-acs-content-sm3":     true,
+	"x-acs-security-token":  true,
+	"ackclusterid":          true,
 }
 
 type getCallerIdentityWrapper struct {
@@ -318,8 +331,9 @@ type Verifier interface {
 }
 
 type tokenVerifier struct {
-	client    *http.Client
-	clusterID string
+	client      *http.Client
+	clusterID   string
+	stsEndpoint string
 }
 
 func (v tokenVerifier) getClusterID() string {
@@ -327,10 +341,17 @@ func (v tokenVerifier) getClusterID() string {
 }
 
 // NewVerifier creates a Verifier that is bound to the clusterID and uses the default http client.
-func NewVerifier(clusterID string) Verifier {
+func NewVerifier(region, clusterID string) Verifier {
+	endpoint := provider.GetSTSEndpoint(region, true)
+	if region == "" {
+		endpoint = provider.GetSTSEndpoint(region, false)
+	}
+	log.Warnf("will use %s as sts endpoint", endpoint)
+
 	return tokenVerifier{
-		client:    http.DefaultClient,
-		clusterID: clusterID,
+		client:      http.DefaultClient,
+		clusterID:   clusterID,
+		stsEndpoint: endpoint,
 	}
 }
 
@@ -360,55 +381,66 @@ func (v tokenVerifier) Verify(token string) (*Identity, error) {
 		return nil, FormatError{"token is too large"}
 	}
 
-	if !strings.HasPrefix(token, v1Prefix) {
-		return nil, FormatError{fmt.Sprintf("token is missing expected %q prefix", v1Prefix)}
+	if !strings.HasPrefix(token, v1Prefix) && !strings.HasPrefix(token, v2Prefix) {
+		return nil, FormatError{"token is missing expected prefix"}
 	}
 
 	// TODO: this may need to be a constant-time base64 decoding
-	tokenBytes, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(token, v1Prefix))
+	tokenBytes, err := base64.StdEncoding.DecodeString(
+		strings.TrimPrefix(strings.TrimPrefix(token, v1Prefix), v2Prefix),
+	)
 	if err != nil {
 		return nil, FormatError{err.Error()}
 	}
 
-	parsedURL, err := url.Parse(string(tokenBytes))
-	if err != nil {
-		return nil, FormatError{err.Error()}
-	}
-
-	if parsedURL.Scheme != "https" {
-		return nil, FormatError{fmt.Sprintf("unexpected scheme %q in pre-signed URL", parsedURL.Scheme)}
-	}
-
-	if err = v.verifyHost(parsedURL.Host); err != nil {
-		return nil, err
-	}
-
-	if parsedURL.Path != "/" {
-		return nil, FormatError{"unexpected path in pre-signed URL"}
-	}
-
-	queryParamsLower := make(url.Values)
-	queryParams := parsedURL.Query()
-	for key, values := range queryParams {
-		if !parameterWhitelist[strings.ToLower(key)] {
-			return nil, FormatError{fmt.Sprintf("non-whitelisted query parameter %q", key)}
+	var req *http.Request
+	switch {
+	case strings.HasPrefix(token, v2Prefix):
+		req, err = v.parseV2Token(string(tokenBytes))
+		if err != nil {
+			return nil, FormatError{fmt.Sprintf("parse v2 token failed: %s", err.Error())}
 		}
-		if len(values) != 1 {
-			return nil, FormatError{"query parameter with multiple values not supported"}
+	case strings.HasPrefix(token, v1Prefix):
+		parsedURL, err := url.Parse(string(tokenBytes))
+		if err != nil {
+			return nil, FormatError{err.Error()}
 		}
-		queryParamsLower.Set(strings.ToLower(key), values[0])
-	}
 
-	if queryParamsLower.Get("action") != "GetCallerIdentity" {
-		return nil, FormatError{"unexpected action parameter in pre-signed URL"}
-	}
+		if parsedURL.Scheme != "https" {
+			return nil, FormatError{fmt.Sprintf("unexpected scheme %q in pre-signed URL", parsedURL.Scheme)}
+		}
 
-	if err = v.verifyClusterID(queryParamsLower.Get("clusterid")); err != nil {
-		return nil, err
-	}
+		if err = v.verifyHost(parsedURL.Host); err != nil {
+			return nil, err
+		}
 
-	req, err := http.NewRequest("GET", parsedURL.String(), nil)
-	req.Header.Set("accept", "application/json")
+		if parsedURL.Path != "/" {
+			return nil, FormatError{"unexpected path in pre-signed URL"}
+		}
+
+		queryParamsLower := make(url.Values)
+		queryParams := parsedURL.Query()
+		for key, values := range queryParams {
+			if !parameterWhitelist[strings.ToLower(key)] {
+				return nil, FormatError{fmt.Sprintf("non-whitelisted query parameter %q", key)}
+			}
+			if len(values) != 1 {
+				return nil, FormatError{"query parameter with multiple values not supported"}
+			}
+			queryParamsLower.Set(strings.ToLower(key), values[0])
+		}
+
+		if queryParamsLower.Get("action") != "GetCallerIdentity" {
+			return nil, FormatError{"unexpected action parameter in pre-signed URL"}
+		}
+
+		if err = v.verifyClusterID(queryParamsLower.Get("clusterid")); err != nil {
+			return nil, err
+		}
+
+		req, err = http.NewRequest("GET", parsedURL.String(), nil)
+		req.Header.Set("accept", "application/json")
+	}
 
 	response, err := v.client.Do(req)
 	if err != nil {
@@ -423,7 +455,7 @@ func (v tokenVerifier) Verify(token string) (*Identity, error) {
 	if response.StatusCode != 200 {
 		responseBytes, err := ioutil.ReadAll(response.Body)
 		if err != nil {
-			return nil, NewSTSError(fmt.Sprintf("error from RAM (expected 200, got %d, err %v)", response.StatusCode, response.Body, err))
+			return nil, NewSTSError(fmt.Sprintf("error from RAM (expected 200, got %d, err %v)", response.StatusCode, err))
 		}
 		return nil, NewSTSError(fmt.Sprintf("error from RAM (expected 200, got %d, body %s, err %v)", response.StatusCode, string(responseBytes), err))
 	}

@@ -44,6 +44,7 @@ import (
 	authenticationv1beta1 "k8s.io/api/authentication/v1beta1"
 )
 
+// TODO: add error field?
 // tokenReviewDenyJSON is a static encoding (at init time) of the 'deny' TokenReview
 var tokenReviewDenyJSON = func() []byte {
 	res, err := json.Marshal(authenticationv1beta1.TokenReview{
@@ -172,7 +173,7 @@ func (m *healthzHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (c *Server) getHandler(mappers []mapper.Mapper) *handler {
 
 	h := &handler{
-		verifier:         token.NewVerifier(c.ClusterID),
+		verifier:         token.NewVerifier(c.Region, c.ClusterID),
 		clusterID:        c.ClusterID,
 		mappers:          mappers,
 		scrubbedAccounts: c.Config.ScrubbedAliyunAccounts,
