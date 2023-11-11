@@ -125,7 +125,16 @@ func (e FormatError) Error() string {
 // STSError is returned when there was either an error calling STS or a problem
 // processing the data returned from STS.
 type STSError struct {
-	message string
+	message     string
+	raiseToUser bool
+}
+
+func (e STSError) RaiseToUser() bool {
+	return e.raiseToUser
+}
+
+func (e STSError) RawMessage() string {
+	return e.message
 }
 
 func (e STSError) Error() string {
@@ -413,7 +422,7 @@ func (v tokenVerifier) Verify(token string) (*Identity, error) {
 	case strings.HasPrefix(token, v2Prefix):
 		accessKeyId, req, err = v.parseV2Token(string(tokenBytes))
 		if err != nil {
-			return nil, FormatError{fmt.Sprintf("parse v2 token failed: %s", err.Error())}
+			return nil, FormatError{err.Error()}
 		}
 	case strings.HasPrefix(token, v1Prefix):
 		parsedURL, err := url.Parse(string(tokenBytes))
@@ -456,37 +465,43 @@ func (v tokenVerifier) Verify(token string) (*Identity, error) {
 		accessKeyId = queryParamsLower.Get("accesskeyid")
 
 		req, err = http.NewRequest("GET", parsedURL.String(), nil)
-		req.Header.Set("accept", "application/json")
 		req.Header.Set("User-Agent", userAgentV1)
 	}
 
+	req.Header.Set("accept", "application/json")
 	response, err := v.client.Do(req)
 	if err != nil {
 		// special case to avoid printing the full URL if possible
 		if urlErr, ok := err.(*url.Error); ok {
-			return nil, NewSTSError(fmt.Sprintf("error during GET: %v", urlErr.Err))
+			log.WithError(urlErr.Err).Errorf("error during GET")
+			return nil, newOpenAPIErr(http.StatusBadRequest, nil, urlErr.Err)
 		}
-		return nil, NewSTSError(fmt.Sprintf("error during GET: %v", err))
+		log.WithError(err).Errorf("error during GET")
+		return nil, newOpenAPIErr(http.StatusBadRequest, nil, err)
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != 200 {
 		responseBytes, err := ioutil.ReadAll(response.Body)
 		if err != nil {
-			return nil, NewSTSError(fmt.Sprintf("error from RAM (expected 200, got %d, err %v)", response.StatusCode, err))
+			log.Errorf("error from RAM (expected 200, got %d, err %v)", response.StatusCode, err)
+			return nil, newOpenAPIErr(response.StatusCode, nil, nil)
 		}
-		return nil, NewSTSError(fmt.Sprintf("error from RAM (expected 200, got %d, body %s, err %v)", response.StatusCode, string(responseBytes), err))
+		log.Errorf("error from RAM (expected 200, got %d, body %s, err %v)", response.StatusCode, string(responseBytes), err)
+		return nil, newOpenAPIErr(response.StatusCode, responseBytes, nil)
 	}
 
 	responseBody, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		return nil, NewSTSError(fmt.Sprintf("error reading HTTP result: %v", err))
+		log.Errorf(fmt.Sprintf("error reading HTTP result: %v", err))
+		return nil, newOpenAPIErr(http.StatusBadRequest, nil, fmt.Errorf("error reading HTTP result: %s", err.Error()))
 	}
 
 	var callerIdentity getCallerIdentityWrapper
 	err = json.Unmarshal(responseBody, &callerIdentity)
 	if err != nil {
-		return nil, NewSTSError(err.Error())
+		log.Errorf(err.Error())
+		return nil, newOpenAPIErr(http.StatusBadRequest, nil, err)
 	}
 
 	// parse the response into an Identity
@@ -496,7 +511,8 @@ func (v tokenVerifier) Verify(token string) (*Identity, error) {
 	}
 	id.CanonicalARN, err = arn.Canonicalize(id.ARN)
 	if err != nil {
-		return nil, NewSTSError(err.Error())
+		log.Errorf(err.Error())
+		return nil, newOpenAPIErr(http.StatusBadRequest, nil, err)
 	}
 	id.AccessKeyID = accessKeyId
 
@@ -509,9 +525,9 @@ func (v tokenVerifier) Verify(token string) (*Identity, error) {
 	} else if len(userIDParts) == 1 {
 		id.UserID = userIDParts[0]
 	} else {
-		return nil, STSError{fmt.Sprintf(
+		return nil, newOpenAPIErr(http.StatusBadRequest, nil, fmt.Errorf(
 			"malformed UserID %q",
-			callerIdentity.PrincipalID)}
+			callerIdentity.PrincipalID))
 	}
 
 	return id, nil

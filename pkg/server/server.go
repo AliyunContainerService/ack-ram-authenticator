@@ -29,6 +29,7 @@ import (
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/metrics"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/utils"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/clientcmd"
 	"log"
@@ -44,7 +45,6 @@ import (
 	authenticationv1beta1 "k8s.io/api/authentication/v1beta1"
 )
 
-// TODO: add error field?
 // tokenReviewDenyJSON is a static encoding (at init time) of the 'deny' TokenReview
 var tokenReviewDenyJSON = func() []byte {
 	res, err := json.Marshal(authenticationv1beta1.TokenReview{
@@ -282,8 +282,8 @@ func (h *handler) authenticateEndpoint(w http.ResponseWriter, req *http.Request)
 			metrics.Get().Latency.WithLabelValues(metrics.Invalid).Observe(duration(start))
 		}
 		log.WithError(err).Warn("access denied")
-		w.WriteHeader(http.StatusForbidden)
-		w.Write(tokenReviewDenyJSON)
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(newDenyTokenReview(err, tokenReview.TypeMeta))
 		return
 	}
 
@@ -303,8 +303,8 @@ func (h *handler) authenticateEndpoint(w http.ResponseWriter, req *http.Request)
 	if err != nil {
 		metrics.Get().Latency.WithLabelValues(metrics.Unknown).Observe(duration(start))
 		log.WithError(err).Warn("access denied")
-		w.WriteHeader(http.StatusForbidden)
-		w.Write(tokenReviewDenyJSON)
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(newDenyTokenReview(NewMappingError(err), tokenReview.TypeMeta))
 		return
 	}
 
@@ -422,4 +422,35 @@ func (h *handler) renderTemplate(template string, identity *token.Identity) (str
 	template = strings.Replace(template, "{{SessionNameRaw}}", identity.SessionName, -1)
 
 	return template, nil
+}
+
+func newDenyTokenReview(err error, meta metav1.TypeMeta) authenticationv1beta1.TokenReview {
+	tr := &authenticationv1beta1.TokenReview{
+		TypeMeta: meta,
+		Status: authenticationv1beta1.TokenReviewStatus{
+			Authenticated: false,
+		},
+	}
+
+	if err != nil && err.Error() != "" {
+		var msg string
+		switch err.(type) {
+		case token.FormatError:
+			msg = fmt.Sprintf("parse token failed. %s", err.Error())
+		case token.STSError:
+			e := err.(token.STSError)
+			if e.RaiseToUser() {
+				msg = e.RawMessage()
+			}
+		case MappingError:
+			msg = fmt.Sprintf("invalid token. %s", err.Error())
+		}
+		if msg == "" {
+			msg = "invalid token"
+		}
+		tr.Status.Error = fmt.Sprintf("[ack-ram-authenticator] %s", msg)
+	}
+
+	logrus.Warningf("deny error: %s", tr.Status.Error)
+	return *tr
 }
