@@ -328,6 +328,9 @@ func (h *handler) authenticateEndpoint(w http.ResponseWriter, req *http.Request)
 		userExtra["arn"] = authenticationv1beta1.ExtraValue{identity.ARN}
 		userExtra["canonicalArn"] = authenticationv1beta1.ExtraValue{identity.CanonicalARN}
 		userExtra["sessionName"] = authenticationv1beta1.ExtraValue{identity.SessionName}
+		if len(identity.AccessKeyID) > 0 {
+			userExtra["accessKeyId"] = authenticationv1beta1.ExtraValue{identity.AccessKeyID}
+		}
 	}
 
 	log.Infof("userExtra is %v", userExtra)
@@ -399,6 +402,7 @@ func (h *handler) renderTemplates(mapping config.IdentityMapping, identity *toke
 
 func (h *handler) renderTemplate(template string, identity *token.Identity) (string, error) {
 	// Private DNS requires EC2 API call
+	// TODO: remove it
 	if strings.Contains(template, "{{ECSPrivateDNSName}}") {
 		if !instanceIDPattern.MatchString(identity.SessionName) {
 			return "", fmt.Errorf("SessionName did not contain an instance id")

@@ -70,6 +70,11 @@ type Identity struct {
 	// users or other roles are allowed to assume the role, they can provide
 	// (nearly) arbitrary strings here.
 	SessionName string
+
+	// The Alibaba Cloud Access Key ID used to authenticate the request.  This can be used
+	// in conjunction with CloudTrail to determine the identity of the individual
+	// if the individual assumed an IAM role before making the request.
+	AccessKeyID string
 }
 
 const (
@@ -348,6 +353,7 @@ func NewVerifier(region, clusterID string) Verifier {
 	}
 	log.Warnf("will use %s as sts endpoint", endpoint)
 
+	// TODO: use custom client
 	return tokenVerifier{
 		client:      http.DefaultClient,
 		clusterID:   clusterID,
@@ -367,7 +373,7 @@ func (v tokenVerifier) verifyHost(host string) error {
 // verify a sts host
 func (v tokenVerifier) verifyClusterID(clusterID string) error {
 	if v.clusterID != clusterID {
-		return FormatError{fmt.Sprintf("unexpected clusterid %s in pre-signed URL", clusterID)}
+		return FormatError{fmt.Sprintf("unexpected clusterid %s in token", clusterID)}
 	}
 
 	return nil
@@ -394,9 +400,10 @@ func (v tokenVerifier) Verify(token string) (*Identity, error) {
 	}
 
 	var req *http.Request
+	var accessKeyId string
 	switch {
 	case strings.HasPrefix(token, v2Prefix):
-		req, err = v.parseV2Token(string(tokenBytes))
+		accessKeyId, req, err = v.parseV2Token(string(tokenBytes))
 		if err != nil {
 			return nil, FormatError{fmt.Sprintf("parse v2 token failed: %s", err.Error())}
 		}
@@ -413,6 +420,7 @@ func (v tokenVerifier) Verify(token string) (*Identity, error) {
 		if err = v.verifyHost(parsedURL.Host); err != nil {
 			return nil, err
 		}
+		parsedURL.Host = v.stsEndpoint
 
 		if parsedURL.Path != "/" {
 			return nil, FormatError{"unexpected path in pre-signed URL"}
@@ -437,9 +445,11 @@ func (v tokenVerifier) Verify(token string) (*Identity, error) {
 		if err = v.verifyClusterID(queryParamsLower.Get("clusterid")); err != nil {
 			return nil, err
 		}
+		accessKeyId = queryParamsLower.Get("accesskeyid")
 
 		req, err = http.NewRequest("GET", parsedURL.String(), nil)
 		req.Header.Set("accept", "application/json")
+		req.Header.Set("User-Agent", userAgentV1)
 	}
 
 	response, err := v.client.Do(req)
@@ -480,6 +490,7 @@ func (v tokenVerifier) Verify(token string) (*Identity, error) {
 	if err != nil {
 		return nil, NewSTSError(err.Error())
 	}
+	id.AccessKeyID = accessKeyId
 
 	// The user ID is either UserID:SessionName (for assumed roles) or just
 	// UserID (for RAM User principals).
