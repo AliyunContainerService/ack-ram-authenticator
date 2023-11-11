@@ -353,9 +353,17 @@ func NewVerifier(region, clusterID string) Verifier {
 	}
 	log.Warnf("will use %s as sts endpoint", endpoint)
 
-	// TODO: use custom client
+	rt := http.DefaultTransport.(*http.Transport).Clone()
+	rt.MaxIdleConnsPerHost = 128
+	client := &http.Client{
+		Transport: rt,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
 	return tokenVerifier{
-		client:      http.DefaultClient,
+		client:      client,
 		clusterID:   clusterID,
 		stsEndpoint: endpoint,
 	}
