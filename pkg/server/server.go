@@ -19,7 +19,6 @@ package server
 import (
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/configmap"
@@ -27,7 +26,6 @@ import (
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/dynamicfile"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/file"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/metrics"
-	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/utils"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -328,9 +326,6 @@ func (h *handler) authenticateEndpoint(w http.ResponseWriter, req *http.Request)
 		userExtra["arn"] = authenticationv1beta1.ExtraValue{identity.ARN}
 		userExtra["canonicalArn"] = authenticationv1beta1.ExtraValue{identity.CanonicalARN}
 		userExtra["sessionName"] = authenticationv1beta1.ExtraValue{identity.SessionName}
-		if len(identity.AccessKeyID) > 0 {
-			userExtra["accessKeyId"] = authenticationv1beta1.ExtraValue{identity.AccessKeyID}
-		}
 	}
 
 	log.Infof("userExtra is %v", userExtra)
@@ -401,20 +396,6 @@ func (h *handler) renderTemplates(mapping config.IdentityMapping, identity *toke
 }
 
 func (h *handler) renderTemplate(template string, identity *token.Identity) (string, error) {
-	// Private DNS requires EC2 API call
-	// TODO: remove it
-	if strings.Contains(template, "{{ECSPrivateDNSName}}") {
-		if !instanceIDPattern.MatchString(identity.SessionName) {
-			return "", fmt.Errorf("SessionName did not contain an instance id")
-		}
-		regionId := utils.GetMetaData(utils.RegionID)
-		privateIp := utils.GetMetaData(utils.PrivateIPv4)
-		if regionId == "" || privateIp == "" {
-			return "", errors.New("not found info from metaserver when get ecs private dns name")
-		}
-		privateDNSName := regionId + "." + privateIp
-		template = strings.Replace(template, "{{ECSPrivateDNSName}}", privateDNSName, -1)
-	}
 
 	template = strings.Replace(template, "{{AccountID}}", identity.AccountID, -1)
 	sessionName := strings.Replace(identity.SessionName, "@", "-", -1)
