@@ -363,7 +363,13 @@ func NewVerifier(region, clusterID string) Verifier {
 	log.Warnf("will use %s as sts endpoint", endpoint)
 
 	rt := http.DefaultTransport.(*http.Transport).Clone()
-	rt.MaxIdleConnsPerHost = 128
+	if v, err := strconv.Atoi(os.Getenv("STS_MAX_IDLE_CONNS_PER_HOST")); err == nil && v > 1 {
+		rt.MaxIdleConnsPerHost = v
+	} else {
+		rt.MaxIdleConnsPerHost = 5
+	}
+	log.Warnf("will use %d as value of MaxIdleConnsPerHost", rt.MaxIdleConnsPerHost)
+
 	client := &http.Client{
 		Transport: rt,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
