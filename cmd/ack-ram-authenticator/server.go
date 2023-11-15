@@ -24,6 +24,7 @@ import (
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/server"
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/sample-controller/pkg/signals"
+	"os"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -90,6 +91,12 @@ func init() {
 		DefaultPort,
 		"Port to bind the server to listen to")
 	viper.BindPFlag("server.port", serverCmd.Flags().Lookup("port"))
+
+	serverCmd.Flags().String(
+		"region",
+		os.Getenv("STS_REGION"),
+		"current region")
+	viper.BindPFlag("server.region", serverCmd.Flags().Lookup("region"))
 
 	rootCmd.AddCommand(serverCmd)
 }

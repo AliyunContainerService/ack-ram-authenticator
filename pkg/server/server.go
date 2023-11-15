@@ -19,7 +19,6 @@ package server
 import (
 	"crypto/tls"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/configmap"
@@ -27,8 +26,8 @@ import (
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/dynamicfile"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/mapper/file"
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/metrics"
-	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/utils"
 	apiextcs "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/clientcmd"
 	"log"
@@ -172,7 +171,7 @@ func (m *healthzHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (c *Server) getHandler(mappers []mapper.Mapper) *handler {
 
 	h := &handler{
-		verifier:         token.NewVerifier(c.ClusterID),
+		verifier:         token.NewVerifier(c.Region, c.ClusterID),
 		clusterID:        c.ClusterID,
 		mappers:          mappers,
 		scrubbedAccounts: c.Config.ScrubbedAliyunAccounts,
@@ -281,8 +280,8 @@ func (h *handler) authenticateEndpoint(w http.ResponseWriter, req *http.Request)
 			metrics.Get().Latency.WithLabelValues(metrics.Invalid).Observe(duration(start))
 		}
 		log.WithError(err).Warn("access denied")
-		w.WriteHeader(http.StatusForbidden)
-		w.Write(tokenReviewDenyJSON)
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(newDenyTokenReview(err, tokenReview.TypeMeta))
 		return
 	}
 
@@ -302,8 +301,8 @@ func (h *handler) authenticateEndpoint(w http.ResponseWriter, req *http.Request)
 	if err != nil {
 		metrics.Get().Latency.WithLabelValues(metrics.Unknown).Observe(duration(start))
 		log.WithError(err).Warn("access denied")
-		w.WriteHeader(http.StatusForbidden)
-		w.Write(tokenReviewDenyJSON)
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(newDenyTokenReview(NewMappingError(err), tokenReview.TypeMeta))
 		return
 	}
 
@@ -397,19 +396,6 @@ func (h *handler) renderTemplates(mapping config.IdentityMapping, identity *toke
 }
 
 func (h *handler) renderTemplate(template string, identity *token.Identity) (string, error) {
-	// Private DNS requires EC2 API call
-	if strings.Contains(template, "{{ECSPrivateDNSName}}") {
-		if !instanceIDPattern.MatchString(identity.SessionName) {
-			return "", fmt.Errorf("SessionName did not contain an instance id")
-		}
-		regionId := utils.GetMetaData(utils.RegionID)
-		privateIp := utils.GetMetaData(utils.PrivateIPv4)
-		if regionId == "" || privateIp == "" {
-			return "", errors.New("not found info from metaserver when get ecs private dns name")
-		}
-		privateDNSName := regionId + "." + privateIp
-		template = strings.Replace(template, "{{ECSPrivateDNSName}}", privateDNSName, -1)
-	}
 
 	template = strings.Replace(template, "{{AccountID}}", identity.AccountID, -1)
 	sessionName := strings.Replace(identity.SessionName, "@", "-", -1)
@@ -417,4 +403,35 @@ func (h *handler) renderTemplate(template string, identity *token.Identity) (str
 	template = strings.Replace(template, "{{SessionNameRaw}}", identity.SessionName, -1)
 
 	return template, nil
+}
+
+func newDenyTokenReview(err error, meta metav1.TypeMeta) authenticationv1beta1.TokenReview {
+	tr := &authenticationv1beta1.TokenReview{
+		TypeMeta: meta,
+		Status: authenticationv1beta1.TokenReviewStatus{
+			Authenticated: false,
+		},
+	}
+
+	if err != nil && err.Error() != "" {
+		var msg string
+		switch err.(type) {
+		case token.FormatError:
+			msg = fmt.Sprintf("parse token failed. %s", err.Error())
+		case token.STSError:
+			e := err.(token.STSError)
+			if e.RaiseToUser() {
+				msg = e.RawMessage()
+			}
+		case MappingError:
+			msg = fmt.Sprintf("invalid token. %s", err.Error())
+		}
+		if msg == "" {
+			msg = "invalid token"
+		}
+		tr.Status.Error = fmt.Sprintf("[ack-ram-authenticator] %s", msg)
+	}
+
+	logrus.Warningf("deny error: %s", tr.Status.Error)
+	return *tr
 }

@@ -1,3 +1,6 @@
+# github.com/AliyunContainerService/ack-ram-tool/pkg/credentials/provider v0.10.0
+## explicit
+github.com/AliyunContainerService/ack-ram-tool/pkg/credentials/provider
 # github.com/alibabacloud-go/darabonba-openapi v0.1.7
 ## explicit
 github.com/alibabacloud-go/darabonba-openapi/client
