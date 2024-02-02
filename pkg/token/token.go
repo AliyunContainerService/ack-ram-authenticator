@@ -426,11 +426,13 @@ func (v tokenVerifier) Verify(token string) (*Identity, error) {
 	var accessKeyId string
 	switch {
 	case strings.HasPrefix(token, v2Prefix):
+		log.Infof("start to parse token with prefix %s", v2Prefix)
 		accessKeyId, req, err = v.parseV2Token(string(tokenBytes))
 		if err != nil {
 			return nil, FormatError{err.Error()}
 		}
 	case strings.HasPrefix(token, v1Prefix):
+		log.Infof("start to parse token with prefix %s", v1Prefix)
 		parsedURL, err := url.Parse(string(tokenBytes))
 		if err != nil {
 			return nil, FormatError{err.Error()}
