@@ -1,36 +1,48 @@
-MakefileDOCKER_REGISTRY ?= "registry.cn-hangzhou.aliyuncs.com/acs"
-BINARY_NAME=ack-ram-authenticator
-AUTHENTICATOR_VERSION=v0.1.0
-GO111MODULE=on
 # Image URL to use all building/pushing image targets
-IMG = ${DOCKER_REGISTRY}/${BINARY_NAME}:${AUTHENTICATOR_VERSION}
-# Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
-CRD_OPTIONS ?= "crd:trivialVersions=true"
+IMG ?= ack-ram-authenticator:latest
 
-BUILD_FLAGS=-ldflags "-X main.version=${AUTHENTICATOR_VERSION}"
+# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
+ifeq (,$(shell go env GOBIN))
+GOBIN=$(shell go env GOPATH)/bin
+else
+GOBIN=$(shell go env GOBIN)
+endif
 
-all: manager
+# Setting SHELL to bash allows bash commands to be executed by recipes.
+# Options are set to exit when a recipe line exits non-zero or a piped command fails.
+SHELL = /usr/bin/env bash -o pipefail
+.SHELLFLAGS = -ec
 
-setup:
-	go get -v -u github.com/Masterminds/glide
-	go get -v -u github.com/githubnemo/CompileDaemon
-	go get -v -u github.com/alecthomas/gometalinter
-	go get -v -u github.com/jstemmer/go-junit-report
-	go get -v github.com/mattn/goveralls
-	gometalinter --install --update
-	glide install --strip-vendor
+BUILD_TIMESTAMP = $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+COMMIT ?= $(shell git rev-parse HEAD)
+COMMIT_SHORT ?= $(shell git rev-parse --short HEAD)
+IMAGE_TAG ?= $(shell git describe --tags --long|awk -F '-' '{print $$1"."$$2"-"$$3"-aliyun"}')
+PACKAGE = github.com/AliyunContainerService/ack-ram-authenticator
+
+GO_LDFLAGS := -extldflags "-static"
+# GO_LDFLAGS += -w -s # Drop debugging symbols.
+GO_LDFLAGS += -X $(PACKAGE)/pkg/version.Version=$(IMAGE_TAG) \
+	-X $(PACKAGE)/pkg/version.Vcs=$(COMMIT_SHORT) \
+	-X $(PACKAGE)/pkg/version.Timestamp=$(BUILD_TIMESTAMP)
+GO_BUILD_FLAGS := -ldflags '$(GO_LDFLAGS)'
+
+# Active module mode, as we use go modules to manage dependencies
+export GO111MODULE=on
+
+.PHONY: all
+all: build
 
 build:
-	CGO_ENABLED=0  go build -o build/bin/$(BINARY_NAME) github.com/AliyunContainerService/$(BINARY_NAME)/cmd/ack-ram-authenticator
+	CGO_ENABLED=0  go build $(GO_BUILD_FLAGS) -mod=vendor -o build/bin/$(BINARY_NAME) github.com/AliyunContainerService/$(BINARY_NAME)/cmd/ack-ram-authenticator
 
 build-race:
-	CGO_ENABLED=0  go build -race -o build/bin/$(BINARY_NAME) github.com/AliyunContainerService/$(BINARY_NAME)/cmd/ack-ram-authenticator
+	CGO_ENABLED=0  go build -race $(GO_BUILD_FLAGS) -mod=vendor -o build/bin/$(BINARY_NAME) github.com/AliyunContainerService/$(BINARY_NAME)/cmd/ack-ram-authenticator
 
 build-all:
-	CGO_ENABLED=0  go build $$(glide nv)
+	CGO_ENABLED=0  go build $(GO_BUILD_FLAGS) -mod=vendor $$(glide nv)
 
 build-image:
-	CGO_ENABLED=0  go build -o build/bin/$(BINARY_NAME) github.com/AliyunContainerService/$(BINARY_NAME)/cmd/ack-ram-authenticator
+	CGO_ENABLED=0  go build $(GO_BUILD_FLAGS) -mod=vendor -o build/bin/$(BINARY_NAME) github.com/AliyunContainerService/$(BINARY_NAME)/cmd/ack-ram-authenticator
 	docker build --build-arg AUTHENTICATOR_VERSION=${AUTHENTICATOR_VERSION} -t ${IMG} .
 
 # Run tests

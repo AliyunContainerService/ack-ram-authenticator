@@ -18,7 +18,7 @@ tasks:
       name: git-clone
       params:
         - name: subdirectory
-          value: "src/gitlab.alibaba-inc.com/cos/ack-ram-authenticator"
+          value: "src/github.com/AliyunContainerService/ack-ram-authenticator"
         - name: url
           value: http://gitlab.alibaba-inc.com/cos/ack-ram-authenticator.git
         - name: revision
@@ -42,7 +42,7 @@ tasks:
           value: reg.docker.alibaba-inc.com/chorus-ci/git-init:v0.14.2
         - name: SCRIPT
           value: |
-            TARGET_PATH=src/gitlab.alibaba-inc.com/cos/ack-ram-authenticator
+            TARGET_PATH=src/github.com/AliyunContainerService/ack-ram-authenticator
             cd /workspace/output/$TARGET_PATH
             git fetch -t
             set -e
@@ -72,11 +72,11 @@ tasks:
         - name: MULTI_ARCH
           value: {{.arch}} #镜像支持的平台列表，逗号分隔，必填
         - name: CONTEXT
-          value: src/gitlab.alibaba-inc.com/cos/ack-ram-authenticator
+          value: src/github.com/AliyunContainerService/ack-ram-authenticator
         - name: BUILD_ARG
           value: "COMMIT_SHORT={{.CHORUS_GIT_SHORT_COMMIT_ID}},IMAGE_TAG=$(tasks.write-tag.results.image_tag)"
         - name: DOCKERFILE
-          value: ./src/gitlab.alibaba-inc.com/cos/ack-ram-authenticator/Dockerfile
+          value: ./src/github.com/AliyunContainerService/ack-ram-authenticator/multi-arch.Dockerfile
         - name: REGISTRY_LIST
           value: registry.{{.region}}.aliyuncs.com
         - name: IMAGE_NAME
