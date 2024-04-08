@@ -1,0 +1,96 @@
+metadata:
+  name: stable-ack-ram-authenticator-image-build
+  description: "ack-ram-authenticator image 构建"
+spec:
+  timeout: 1h
+  serviceAccount: tekton-acs-ci
+  podTemplate:
+    nodeSelector:
+      subpool: dind
+  workspace:
+    name: ws
+tasks:
+  - name: git-clone
+    description: "克隆代码"
+    type: chorus
+    timeout: 10m
+    taskRef:
+      name: git-clone
+      params:
+        - name: subdirectory
+          value: "src/gitlab.alibaba-inc.com/cos/ack-ram-authenticator"
+        - name: url
+          value: http://gitlab.alibaba-inc.com/cos/ack-ram-authenticator.git
+        - name: revision
+          value: {{.branch}}
+        - name: submodules
+          value: false
+        - name: depth
+          value: 100
+    workspaces:
+      - name: output
+        workspace: ws
+
+  - name: write-tag
+    description: "计算image tag"
+    type: custom
+    timeout: 3m
+    taskRef:
+      name: write-commitid
+      params:
+        - name: IMAGE
+          value: reg.docker.alibaba-inc.com/chorus-ci/git-init:v0.14.2
+        - name: SCRIPT
+          value: |
+            TARGET_PATH=src/gitlab.alibaba-inc.com/cos/ack-ram-authenticator
+            cd /workspace/output/$TARGET_PATH
+            git fetch -t
+            set -e
+            TAG=`git describe --tags --long|awk -F '-' '{print $1"."$2"-"$3"-aliyun"}'`
+            
+            if [[ "{{.tag}}none" != "none" ]]; then
+            	TAG={{.tag}}
+            fi
+            
+            # 这里需要把tag内容写入到results中，供上下文获取
+            echo -n $TAG  > /tekton/results/image_tag
+    results:
+      - name: image_tag
+    workspaces:
+      - name: output
+        workspace: ws
+    runAfter:
+      - git-clone
+
+  - name: build-ack-ram-authenticator-image
+    description: "构建镜像 ack-ram-authenticator"
+    type: chorus
+    timeout: 180m
+    taskRef:
+      name: multi-arch-build-with-buildx
+      params:
+        - name: MULTI_ARCH
+          value: {{.arch}} #镜像支持的平台列表，逗号分隔，必填
+        - name: CONTEXT
+          value: src/gitlab.alibaba-inc.com/cos/ack-ram-authenticator
+        - name: BUILD_ARG
+          value: "COMMIT_SHORT={{.CHORUS_GIT_SHORT_COMMIT_ID}},IMAGE_TAG=$(tasks.write-tag.results.image_tag)"
+        - name: DOCKERFILE
+          value: ./src/gitlab.alibaba-inc.com/cos/ack-ram-authenticator/Dockerfile
+        - name: REGISTRY_LIST
+          value: registry.{{.region}}.aliyuncs.com
+        - name: IMAGE_NAME
+          value: acs/ack-ram-authenticator
+        - name: IMAGE_TAG
+          value: "$(tasks.write-tag.results.image_tag)"
+        - name: USER
+          value: {{.ACS_DOCKER_USER}}
+        - name: PASSWORD
+          value: {{.ACS_DOCKER_PW}}
+        - name: CHORUS_PIPELINE_UID
+          value: {{.CHORUS_PIPELINE_UID}} #用来推送结果到页面上方便查看的参数，不用修改，非必填，若不填写则需要去每个执行中自行查看push的镜像名称
+    workspaces:
+      - name: source    # 不用改, 构建task用到的workspace名称
+        workspace: ws
+    runAfter:
+      - write-tag
