@@ -80,7 +80,7 @@ tasks:
         - name: REGISTRY_LIST
           value: registry.{{.region}}.aliyuncs.com
         - name: IMAGE_NAME
-          value: acs/ack-ram-authenticator
+          value: acs/ram-authenticator
         - name: IMAGE_TAG
           value: "$(tasks.write-tag.results.image_tag)"
         - name: USER

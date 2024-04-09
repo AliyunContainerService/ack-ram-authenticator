@@ -3,7 +3,7 @@ module github.com/AliyunContainerService/ack-ram-authenticator
 go 1.16
 
 require (
-	github.com/AliyunContainerService/ack-ram-tool/pkg/credentials/provider v0.10.0 // indirect
+	github.com/AliyunContainerService/ack-ram-tool/pkg/credentials/provider v0.10.0
 	github.com/alibabacloud-go/darabonba-openapi v0.1.7
 	github.com/alibabacloud-go/sts-20150401 v1.1.0
 	github.com/alibabacloud-go/tea v1.1.15
