@@ -8,10 +8,11 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg"
 	log "github.com/sirupsen/logrus"
 )
 
-const (
+var (
 	userAgentV2 = "ack-ram-authenticator/v2"
 	userAgentV1 = "ack-ram-authenticator/v1"
 )
@@ -25,6 +26,15 @@ type V2Token struct {
 	Path    string            `json:"path"`
 	Query   map[string]string `json:"query"`
 	Headers map[string]string `json:"headers"`
+}
+
+func init() {
+	versionSuffix := pkg.Version
+	if pkg.CommitID != "" {
+		versionSuffix = fmt.Sprintf("%s/%s", versionSuffix, pkg.CommitID)
+	}
+	userAgentV1 = fmt.Sprintf("%s/%s", userAgentV1, versionSuffix)
+	userAgentV2 = fmt.Sprintf("%s/%s", userAgentV2, versionSuffix)
 }
 
 func (v tokenVerifier) parseV2Token(rawToken string) (string, *http.Request, error) {

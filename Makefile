@@ -21,14 +21,15 @@ PACKAGE = github.com/AliyunContainerService/ack-ram-authenticator
 
 GO_LDFLAGS := -extldflags "-static"
 # GO_LDFLAGS += -w -s # Drop debugging symbols.
-GO_LDFLAGS += -X $(PACKAGE)/pkg/version.Version=$(IMAGE_TAG) \
-	-X $(PACKAGE)/pkg/version.Vcs=$(COMMIT_SHORT) \
-	-X $(PACKAGE)/pkg/version.Timestamp=$(BUILD_TIMESTAMP)
+GO_LDFLAGS += -X $(PACKAGE)/pkg.Version=$(IMAGE_TAG) \
+	-X $(PACKAGE)/pkg.CommitID=$(COMMIT_SHORT) \
+	-X $(PACKAGE)/pkg.BuildDate=$(BUILD_TIMESTAMP)
 GO_BUILD_FLAGS := -ldflags '$(GO_LDFLAGS)'
 
 .PHONY: all
 all: build
 
+.PHONY: build
 build:
 	CGO_ENABLED=0 GO111MODULE=off go build $(GO_BUILD_FLAGS)  -o bin/$(BINARY_NAME) github.com/AliyunContainerService/$(BINARY_NAME)/cmd/ack-ram-authenticator
 
