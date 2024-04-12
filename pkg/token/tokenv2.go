@@ -2,16 +2,17 @@ package token
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"regexp"
 	"strings"
 
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg"
 	log "github.com/sirupsen/logrus"
 )
 
-const (
+var (
 	userAgentV2 = "ack-ram-authenticator/v2"
 	userAgentV1 = "ack-ram-authenticator/v1"
 )
@@ -27,6 +28,15 @@ type V2Token struct {
 	Headers map[string]string `json:"headers"`
 }
 
+func init() {
+	versionSuffix := pkg.Version
+	if pkg.CommitID != "" {
+		versionSuffix = fmt.Sprintf("%s/%s", versionSuffix, pkg.CommitID)
+	}
+	userAgentV1 = fmt.Sprintf("%s/%s", userAgentV1, versionSuffix)
+	userAgentV2 = fmt.Sprintf("%s/%s", userAgentV2, versionSuffix)
+}
+
 func (v tokenVerifier) parseV2Token(rawToken string) (string, *http.Request, error) {
 	var t V2Token
 	rawToken = strings.TrimPrefix(rawToken, v2Prefix)
@@ -39,12 +49,15 @@ func (v tokenVerifier) parseV2Token(rawToken string) (string, *http.Request, err
 		log.Warnf("[%s] found unexpected clusterId from token: %+v", v.clusterID, t.ClusterId)
 		return "", nil, err
 	}
-
-	reqURL := fmt.Sprintf("https://%s", v.stsEndpoint)
-	if u, err := url.ParseRequestURI(t.Path); err == nil && u != nil {
-		reqURL = reqURL + u.Path
+	if t.Headers == nil {
+		t.Headers = map[string]string{}
 	}
-	req, err := http.NewRequest(strings.ToUpper(t.Method), reqURL, nil)
+	if t.Query == nil {
+		t.Query = map[string]string{}
+	}
+
+	reqURL := fmt.Sprintf("https://%s/", v.stsEndpoint)
+	req, err := http.NewRequest(http.MethodPost, reqURL, nil)
 	if err != nil {
 		return "", nil, err
 	}
@@ -68,7 +81,12 @@ func (v tokenVerifier) parseV2Token(rawToken string) (string, *http.Request, err
 			req.Header.Set(k, vs)
 		}
 	}
-	req.Header.Set("User-Agent", userAgentV2)
+	userAgent := strings.TrimSpace(fmt.Sprintf("%s %s", userAgentV2, t.Headers["user-agent"]))
+	req.Header.Set("User-Agent", userAgent)
+	if req.Header.Get("x-acs-action") != "GetCallerIdentity" {
+		log.Warnf("[%s] found unexpected x-acs-action from token: %+v", v.clusterID, req.Header.Get("x-acs-action"))
+		return "", nil, errors.New("unexpected action in token")
+	}
 
 	accessKeyId := getAccessKeyIdFromV2Header(req.Header.Get("Authorization"))
 
