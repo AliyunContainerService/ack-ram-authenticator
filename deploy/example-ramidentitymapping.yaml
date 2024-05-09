@@ -1,0 +1,13 @@
+---
+apiVersion: ramauthenticator.k8s.alibabacloud/v1alpha1
+kind: RAMIdentityMapping
+metadata:
+  name: example-name
+spec:
+  # RAM Role ram-name is RAM Role nme
+  # arn: acs:ram::<your-master-user-id>:role/<ram-name>
+  # RAM User ram-name is RAM User name
+  arn: acs:ram::<your-master-user-id>:user/<ram-name>
+  username: <ram-name>
+  groups:
+  - system:users

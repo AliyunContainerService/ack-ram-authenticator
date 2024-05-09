@@ -12,10 +12,12 @@ Instead, you can create a dedicated `KubernetesAdmin` role at cluster provisioni
 
 ## How do I use it?
 Assuming you have a cluster running in AlibabaCloud and you want to add AlibabaCloud RAM Authenticator for Kubernetes support, you need to:
- 1. Create an RAM role you'll use to identify users.
- 2. Run the Authenticator server as a DaemonSet.
- 3. Configure your API server to talk to Authenticator.
- 4. Set up kubectl to use Authenticator tokens.
+ 1. Create an RAM role or user you'll use to identify users.
+ 2. Create an CRD in your cluster to store the mapping between RAM roles and Kubernetes users.
+ 3. Configure the mapping relationship between RAM identities and RBAC permissions.
+ 4. Run the Authenticator server as a DaemonSet.
+ 5. Configure your API server to talk to Authenticator.
+ 6. Set up kubectl to use Authenticator tokens.
 
 ### 1. Create an RAM role
 First, you must create one or more RAM roles that will be mapped to users/groups inside your Kubernetes cluster.
@@ -31,10 +33,21 @@ You can also skip this step and use:
  - An existing role (such as a cross-account access role).
  - An RAM user (see `mapUsers` below).
 
-### 2. Run the server
+### 2. Create an CRD
+The Authenticator server uses a custom resource definition (CRD) to store the mapping between RAM roles and Kubernetes users.
+
+You can create this CRD with `kubectl apply -f deloy/ramidentitymapping.yaml`, ramidentitymapping.yaml see [`ramidentitymapping.yaml`](deploy/ramidentitymapping.yaml).
+
+### 3. Configure the mapping relationship between RAM identities and RBAC permissions
+You need to configure the mapping relationship between RAM identities and RBAC permissions.
+First you need to create a RAM identity mapping with `kubectl apply -f deploy/example-ramidentitymapping.yaml`, example-ramidentitymapping.yaml see [`example-ramidentitymapping.yaml`](deploy/example-ramidentitymapping.yaml).
+Then you need to configure the mapping relationship between RAM identities and RBAC permissions with `kubectl apply -f deploy/example-binding.yaml`, example-binding.yaml see [`example-binding.yaml`](deploy/example-binding.yaml).
+
+### 4. Run the server
 The server is meant to run on each of your master nodes as a DaemonSet with host networking so it can expose a localhost port.
 
-For a sample ConfigMap and DaemonSet configuration, see [`example.yaml`](./example.yaml).
+For a sample ConfigMap and DaemonSet configuration, see [`example.yaml`](deploy/example.yaml).
+You can run the server with `kubectl apply -f example.yaml`.
 
 #### (Optional) Pre-generate a certificate, key, and kubeconfig
 If you're building an automated installer, you can also pre-generate the certificate, key, and webhook kubeconfig files easily using `ack-ram-authenticator init`.
@@ -44,9 +57,9 @@ You can run this on each master node prior to starting the API server.
 You could also generate them before provisioning master nodes and install them in the appropriate host paths.
 
 If you do not pre-generate files, `ack-ram-authenticator server` will generate them on demand.
-This works but requires that you restart your Kubernetes API server after installation.
+This works but requires that you restart your Kubernetes API server after installation , you can run `sh example-configure-api-server.sh`, it will automatically complete the above work and rebuild the kube-apiserver, example-configure-api-server.sh see [`example-configure-api-server.sh`](deploy/example-configure-api-server.sh).
 
-### 3. Configure your API server to talk to the server
+### 5. Configure your API server to talk to the server
 The Kubernetes API integrates with ACK RAM Authenticator for Kubernetes using a [token authentication webhook](https://kubernetes.io/docs/admin/authentication/#webhook-token-authentication).
 When you run `ack-ram-authenticator server`, it will generate a webhook configuration file and save it onto the host filesystem.
 You'll need to add a single additional flag to your API server configuration:
@@ -57,12 +70,14 @@ You'll need to add a single additional flag to your API server configuration:
 On many clusters, the API server runs as a static pod.
 You can add the flag to `/etc/kubernetes/manifests/kube-apiserver.yaml`.
 Make sure the host directory `/etc/kubernetes/ack-ram-authenticator/` is mounted into your API server pod.
+You can run  `sh example-configure-api-server.sh` to automatically complete the above work.
+Note: When you restart the ack-ram-authenticator service, you need run  `sh example-configure-api-server.sh`.
 You may also need to restart the kubelet daemon on your master node to pick up the updated static pod definition:
 ```
 systemctl restart kubelet.service
 ```
 
-### 4. Set up kubectl to use authentication tokens provided by ACK RAM Authenticator for Kubernetes
+### 6. Set up kubectl to use authentication tokens provided by ACK RAM Authenticator for Kubernetes
 
 > This requires a 1.10+ `kubectl` binary to work. If you receive `Please enter Username:` when trying to use `kubectl` you need to update to the latest `kubectl`
 
@@ -72,32 +87,33 @@ The `users` section of your configuration, however, should include an exec secti
 ```yaml
 # [...]
 users:
-- name: kubernetes-admin
-  user:
-    exec:
-      apiVersion: client.authentication.k8s.io/v1beta1
-      command: ack-ram-authenticator
-      args:
-        - "token"
-        - "-i"
-        - "CLUSTER_ID"
-        - "-r"
-        - "ROLE_ARN"
-  # no client certificate/key needed here!
+    - name: "<your-user-name>"
+      user:
+        exec:
+            command: ack-ram-tool
+            args:
+                - credential-plugin
+                - get-token
+                - --cluster-id
+                - <your-cluster-id>
+                - --api-version
+                - v1beta1
+                - --log-level
+                - error
+            apiVersion: client.authentication.k8s.io/v1beta1
+            provideClusterInfo: false
+            interactiveMode: Never
+preferences: {}
 ```
 
 This means the `kubeconfig` is entirely public data and can be shared across all Authenticator users.
 It may make sense to upload it to a trusted public location such as AlibabaCloud OSS.
 
-Make sure you have the `ack-ram-authenticator` binary installed.
-You can install it with `go get -u -v github.com/AliyunContainerService/ack-ram-authenticator/cmd/ack-ram-authenticator`.
+Make sure you have the `ack-ram-tool` binary installed.
+You can install and configure it with [ack-ram-tool](https://aliyuncontainerservice.github.io/ack-ram-tool/).
 
 To authenticate, run `kubectl --kubeconfig /path/to/kubeconfig" [...]`.
-kubectl will `exec` the `ack-ram-authenticator` binary with the supplied params in your kubeconfig which will generate a token and pass it to the apiserver.
-The token is valid for 15 minutes and can be reused multiple times.
-
-You can also omit `-r ROLE_ARN` to sign the token with your existing credentials without assuming a dedicated role.
-This is useful if you want to authenticate as an RAM user directly.
+kubectl will `exec` the `ack-ram-tool` binary with the supplied params in your kubeconfig which will generate a token and pass it to the apiserver.
 
 ## How does it work?
 It works using the RAM [`sts:GetCallerIdentity`](https://help.aliyun.com/document_detail/43767.html) API endpoint.

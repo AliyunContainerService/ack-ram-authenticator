@@ -1,67 +1,55 @@
-# Copyright 2017 by the contributors.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-
-# This is an example of how to deploy ACK RAM Authenticator.
-#
-# To use this, you'll at least need to edit the role ARNs in the ConfigMap. You
-# may also need to rework other bits to work in your cluster (e.g., node labels).
-#
-# This was tested with a kubeadm-installed cluster.
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ack-ram-authenticator
 rules:
-- apiGroups:
-  - ramauthenticator.k8s.alibabacloud
-  resources:
-  - ramidentitymappings
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - ramauthenticator.k8s.alibabacloud
-  resources:
-  - ramidentitymappings/status
-  verbs:
-  - patch
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - update
-  - patch
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  verbs:
-  - list
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - configmaps
-  resourceNames:
-  - alibabacloud-auth
-  verbs:
-  - get
+  - apiGroups:
+      - ramauthenticator.k8s.alibabacloud
+    resources:
+      - ramidentitymappings
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - ramauthenticator.k8s.alibabacloud
+    resources:
+      - ramidentitymappings/status
+    verbs:
+      - patch
+      - update
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - update
+      - patch
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - list
+      - watch
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    resourceNames:
+      - alibabacloud-auth
+    verbs:
+      - get
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - get
+      - create
+      - update
 
 ---
 apiVersion: v1
@@ -71,38 +59,18 @@ metadata:
   namespace: kube-system
 
 ---
-kind: RoleBinding
+kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ack-ram-authenticator
-  namespace: kube-system
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: ack-ram-authenticator
 subjects:
-- kind: ServiceAccount
-  name: ack-ram-authenticator
-  namespace: kube-system
-
----
-# apiVersion: v1
-# kind: ConfigMap
-# metadata:
-#   name: alibabacloud-auth
-#   namespace: kube-system
-# data:
-#   mapRoles: |
-#     - rolearn: <ARN of instance role (not instance profile)>
-#       username: system:node:{{ECSPrivateDNSName}}
-#       groups:
-#         - system:bootstrappers
-#         - system:nodes
-#   mapUsers: |
-#     - rolearn: acs:iam::000000000000:user/Alice
-#       username: alice
-#       groups:
-#         - system:masters
+  - kind: ServiceAccount
+    name: ack-ram-authenticator
+    namespace: kube-system
 
 ---
 apiVersion: v1
@@ -116,26 +84,27 @@ data:
   config.yaml: |
     # a unique-per-cluster identifier to prevent replay attacks
     # (good choices are a random token or a domain name that will be unique to your cluster)
-    clusterID: my-dev-cluster.example.com
+    # Replace <your-cluster-id> with actual id
+    clusterID: <your-cluster-id>
+    # server listener configuration
     server:
-      # each mapRoles entry maps an RAM role to a username and set of groups
-      # Each username and group can optionally contain template parameters:
-      #  1) "{{AccountID}}" is the 16 digit RAM ID.
-      #  2) "{{SessionName}}" is the role session name.
-      mapRoles:
-        # statically map acs:ram::000000000000:role/KubernetesAdmin to a cluster admin
-        - roleARN: acs:ram::000000000000:role/KubernetesAdmin
-          username: kubernetes-admin
-          groups:
-            - system:masters
+      # localhost port where the server will serve the /authenticate endpoint
+      port: 21362 # (default)
 
-      # each mapUsers entry maps an RAM role to a static username and set of groups
-      mapUsers:
-        # map user RAM user Alice in 000000000000 to user "alice" in "system:masters"
-        - userARN: acs:ram::000000000000:user/Alice
-          username: alice
-          groups:
-            - system:masters
+      # state directory for generated TLS certificate and private keys
+      stateDir: /var/ack-ram-authenticator/
+
+      # RAM Account IDs to scrub from server logs. (Defaults to empty list)
+      scrubbedAccounts:
+
+      # automatically map RAM ARN from these accounts to username.
+      # NOTE: Always use quotes to avoid the account numbers being recognized as numbers
+      # instead of strings by the yaml parser.
+      mapAccounts:
+
+      # source mappings from this file (mapUsers, mapRoles, & mapAccounts)
+      backendMode:
+        - CRD
 
 ---
 apiVersion: apps/v1
@@ -158,68 +127,73 @@ spec:
     spec:
       # use service account with access to
       serviceAccountName: ack-ram-authenticator
-
       # run on the host network (don't depend on CNI)
       hostNetwork: true
-
       # run on each master node
       nodeSelector:
-        node-role.kubernetes.io/master: ""
+        node-role.kubernetes.io/control-plane: ""
       tolerations:
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/master
-      - key: CriticalAddonsOnly
-        operator: Exists
+        - operator: Exists
 
       # mark pod as critical to the cluster
       priorityClassName: system-cluster-critical
-
       # run `ack-ram-authenticator server` with three volumes
       # - config (mounted from the ConfigMap at /etc/ack-ram-authenticator/config.yaml)
       # - state (persisted TLS certificate and keys, mounted from the host)
       # - output (output kubeconfig to plug into your apiserver configuration, mounted from the host)
       containers:
-      - name: ack-ram-authenticator
-        image: registry.cn-hangzhou.aliyuncs.com/acs/ack-ram-authenticator:v0.1.0
-        args:
-        - server
-        # uncomment if using EKS-Style ConfigMap
-        # - --backend-mode=EKSConfigMap
-        - --config=/etc/ack-ram-authenticator/config.yaml
-        - --state-dir=/var/ack-ram-authenticator
-        - --generate-kubeconfig=/etc/kubernetes/ack-ram-authenticator/kubeconfig.yaml
-
-        securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-          seccompProfile:
-            type: RuntimeDefault
-
-        resources:
-          requests:
-            memory: 20Mi
-            cpu: 10m
-          limits:
-            memory: 20Mi
-            cpu: 100m
-
-        volumeMounts:
-        - name: config
-          mountPath: /etc/ack-ram-authenticator/
-        - name: state
-          mountPath: /var/ack-ram-authenticator/
-        - name: output
-          mountPath: /etc/kubernetes/ack-ram-authenticator/
-
+        - name: ack-ram-authenticator
+          image: registry-cn-hangzhou.ack.aliyuncs.com/acs/ram-authenticator:v0.2.1.3-g694325a9-aliyun
+          args:
+            - server
+            - --config=/etc/ack-ram-authenticator/config.yaml
+            - --state-dir=/var/ack-ram-authenticator
+            - --kubeconfig-pregenerated=true
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            requests:
+              memory: 20Mi
+              cpu: 50m
+            limits:
+              memory: 500Mi
+              cpu: 500m
+          volumeMounts:
+            - name: config
+              mountPath: /etc/ack-ram-authenticator
+            - mountPath: /var/ack-ram-authenticator/
+              name: state
+            - mountPath: /etc/kubernetes/ack-ram-authenticator/
+              name: output
+      initContainers:
+        - name: init-ack-ram-authenticator
+          image:  registry-cn-hangzhou.ack.aliyuncs.com/acs/ram-authenticator-init:v0.2.1.5-g9f72c3a5-aliyun
+          command:
+            - sh
+            - -c
+            # replace <your-cluster-id> to cctual
+            - "ack-ram-authenticator init --cluster-id=<your-cluster-id> &&\
+            mkdir -p /var/ack-ram-authenticator /etc/kubernetes/ack-ram-authenticator &&\
+            mv cert.pem key.pem /var/ack-ram-authenticator &&\
+            mv ack-ram-authenticator.kubeconfig /etc/kubernetes/ack-ram-authenticator/kubeconfig.yaml &&\
+            chown -R 65534:65534 /var/ack-ram-authenticator /etc/kubernetes/ack-ram-authenticator"
+          volumeMounts:
+            - mountPath: /var/ack-ram-authenticator/
+              name: state
+            - mountPath: /etc/kubernetes/ack-ram-authenticator/
+              name: output
       volumes:
-      - name: config
-        configMap:
-          name: ack-ram-authenticator
-      - name: output
-        hostPath:
-          path: /etc/kubernetes/ack-ram-authenticator/
-      - name: state
-        hostPath:
-          path: /var/ack-ram-authenticator/
+        - name: config
+          configMap:
+            name: ack-ram-authenticator
+        - hostPath:
+            path: /etc/kubernetes/ack-ram-authenticator/
+          name: output
+        - hostPath:
+            path: /var/ack-ram-authenticator/
+          name: state

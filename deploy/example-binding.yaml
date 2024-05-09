@@ -1,0 +1,13 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: example-name
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: <your-cluster-role-name>   # e.g.  cs:admin
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: User
+  name: <ram-name>
