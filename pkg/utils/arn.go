@@ -46,7 +46,7 @@ type ARN struct {
 //
 // Some example ARNs:
 // acs:ram::123456789012:user/David
-// acs:ram::123456789012:role/Defaultrole​​​
+// acs:ram::123456789012:role/Defaultrole
 func Parse(arn string) (ARN, error) {
 	if !strings.HasPrefix(arn, arnPrefix) {
 		return ARN{}, errors.New(invalidPrefix)

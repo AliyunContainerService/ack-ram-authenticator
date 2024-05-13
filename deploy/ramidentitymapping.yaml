@@ -1,0 +1,45 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: ramidentitymappings.ramauthenticator.k8s.alibabacloud
+spec:
+  group: ramauthenticator.k8s.alibabacloud
+  scope: Cluster
+  names:
+    plural: ramidentitymappings
+    singular: ramidentitymapping
+    kind: RAMIdentityMapping
+    categories:
+    - all
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              required:
+              - arn
+              - username
+              properties:
+                arn:
+                  type: string
+                username:
+                  type: string
+                groups:
+                  type: array
+                  items:
+                    type: string
+            status:
+              type: object
+              properties:
+                canonicalARN:
+                  type: string
+                userID:
+                  type: string
+      subresources:
+        status: {}

@@ -42,7 +42,7 @@ var (
 )
 
 func toToken(url string) string {
-	return v1Prefix + base64.RawURLEncoding.EncodeToString([]byte(url))
+	return v1Prefix + base64.StdEncoding.EncodeToString([]byte(url))
 }
 
 func newVerifier(statusCode int, body string, err error) Verifier {
