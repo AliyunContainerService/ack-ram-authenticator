@@ -75,7 +75,7 @@ users:
 - name: kubernetes-admin
   user:
     exec:
-      apiVersion: client.authentication.k8s.io/v1alpha1
+      apiVersion: client.authentication.k8s.io/v1beta1
       command: ack-ram-authenticator
       args:
         - "token"
@@ -163,7 +163,7 @@ users:
 - name: ack
   user:
     exec:
-      apiVersion: client.authentication.k8s.io/v1alpha1
+      apiVersion: client.authentication.k8s.io/v1beta1
       command: ack-ram-authenticator
       args:
         - "token"

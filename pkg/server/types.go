@@ -17,6 +17,9 @@ limitations under the License.
 package server
 
 import (
+	"net"
+	"net/http"
+
 	"github.com/AliyunContainerService/ack-ram-authenticator/pkg/config"
 )
 
@@ -24,4 +27,6 @@ import (
 type Server struct {
 	// Config is the whole configuration of ack-ram-authenticator used for valid keys and certs, kubeconfig, and so on
 	config.Config
+	httpServer http.Server
+	listener   net.Listener
 }

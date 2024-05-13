@@ -1,37 +1,47 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
-	goVersion "github.com/christopherhein/go-version"
+	"github.com/AliyunContainerService/ack-ram-authenticator/pkg"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v2"
 )
 
 var (
 	shortened  = false
-	version    = "unversioned"
-	commit     = ""
 	date       = ""
+	output     = ""
 	versionCmd = &cobra.Command{
 		Use:   "version",
 		Short: "Version will output the current build information",
 		Long:  ``,
 		Run: func(_ *cobra.Command, _ []string) {
-			var response string
-			versionOutput := goVersion.New(version, commit, date)
+			ver := struct {
+				Version string `json:"Version,omitempty"`
+				Commit  string `json:"Commit,omitempty"`
+				Date    string `json:"Date,omitempty"`
+			}{pkg.Version, pkg.CommitID, date}
 
-			if shortened {
-				response = versionOutput.ToShortened()
-			} else {
-				response = versionOutput.ToJSON()
+			switch {
+			case shortened:
+				fmt.Println(pkg.Version)
+			case output == "json":
+				json.NewEncoder(os.Stdout).Encode(ver)
+			case output == "yaml":
+				yaml.NewEncoder(os.Stdout).Encode(ver)
+			default:
+				fmt.Fprintln(os.Stderr, "unknown version option")
 			}
-			fmt.Printf("%+v", response)
 			return
 		},
 	}
 )
 
 func init() {
-	versionCmd.Flags().BoolVarP(&shortened, "short", "s", false, "Use shortened output for version information.")
+	versionCmd.Flags().BoolVarP(&shortened, "short", "s", false, "Print just the version number.")
+	versionCmd.Flags().StringVarP(&output, "output", "o", "json", "Output format. One of 'yaml' or 'json'.")
 	rootCmd.AddCommand(versionCmd)
 }
