@@ -1,0 +1,13 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: example-name
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: <cluster-role-name>     # replace <cluster-role-name> by ClusterRole of a cluster, such as cs:admin
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: User
+  name: <ram-name>  # replace <ram-name> by your RAM user/role name and must be the same as the username field of the file example-ramidentitymapping.yaml
