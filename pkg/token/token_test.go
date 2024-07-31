@@ -2,10 +2,8 @@ package token
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -37,13 +35,8 @@ func assertSTSError(t *testing.T, err error) {
 var (
 	now        = time.Now()
 	timeStr    = now.UTC().Format("2006-01-02T15:04:05Z")
-	validToken = toToken(validURL)
-	validURL   = fmt.Sprintf("https://sts.aliyuncs.com/?action=GetCallerIdentity&SignatureVersion=1.0&Format=JSON&Timestamp=%s", timeStr)
+	validToken = v2Prefix + "eyJjbHVzdGVySWQiOiJjMmZhZjRmNzU4NGUzNDljZGE2ZGRhMmEqKioqKioqKioiLCJtZXRob2QiOiJQT1NUIiwicGF0aCI6Ii8iLCJxdWVyeSI6eyJBQ0tDbHVzdGVySWQiOiJjMmZhZjRmNzU4NGUzNDljZGE2ZGRhMmEqKioqKioqKioifSwiaGVhZGVycyI6eyJBdXRob3JpemF0aW9uIjoiQUNTMy1ITUFDLVNIQTI1NiBDcmVkZW50aWFsPSoqKioqKioqKioqKlNKR1cyQioqKioqKixTaWduZWRIZWFkZXJzPXgtYWNzLWFjdGlvbjt4LWFjcy1jb250ZW50LXNoYTI1Njt4LWFjcy1kYXRlO3gtYWNzLXZlcnNpb24sU2lnbmF0dXJlPTgwMzg1NDgzMDk5Mjc0ZWVmMDA0OGE0OTFiYzIyMDkyMWM1ZTE5NWE4M2I3ZmRkZTNmNzBjOTBjMjk2NjVmMGYiLCJ1c2VyLWFnZW50IjoiYWNrLXJhbS10b29sL3YwLjAuMCAoZGFyd2luL2FybTY0KSIsIngtYWNzLWFjdGlvbiI6IkdldENhbGxlcklkZW50aXR5IiwieC1hY3MtY29udGVudC1zaGEyNTYiOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwieC1hY3MtZGF0ZSI6IjIwMjQtMDctMzFUMTE6MzU6MjRaIiwieC1hY3MtdmVyc2lvbiI6IjIwMTUtMDQtMDEifX0="
 )
-
-func toToken(url string) string {
-	return v1Prefix + base64.StdEncoding.EncodeToString([]byte(url))
-}
 
 func newVerifier(statusCode int, body string, err error) Verifier {
 	var rc io.ReadCloser
@@ -51,6 +44,7 @@ func newVerifier(statusCode int, body string, err error) Verifier {
 		rc = ioutil.NopCloser(bytes.NewReader([]byte(body)))
 	}
 	return tokenVerifier{
+		clusterID: "c2faf4f7584e349cda6dda2a*********",
 		client: &http.Client{
 			Transport: &roundTripper{
 				err: err,
@@ -93,36 +87,21 @@ func jsonResponse(arn, account, userid string) string {
 	return string(data)
 }
 
-func TestVerifyTokenPreSTSValidations(t *testing.T) {
-	b := make([]byte, maxTokenLenBytes+1, maxTokenLenBytes+1)
-	s := string(b)
-	validationErrorTest(t, s, "token is too large")
-	validationErrorTest(t, "k8s-ack-v2.asdfasdfa", "token is missing expected \"k8s-ack-v1.\" prefix")
-	validationErrorTest(t, "k8s-ack-v1.decodingerror", "illegal base64 data")
-	validationErrorTest(t, toToken(":ab:cd.af:/asda"), "missing protocol scheme")
-	validationErrorTest(t, toToken("http://"), "unexpected scheme")
-	validationErrorTest(t, toToken("https://google.com"), fmt.Sprintf("unexpected hostname %q in pre-signed URL", "google.com"))
-	validationErrorTest(t, toToken("https://sts.aliyuncs.com/abc"), "unexpected path in pre-signed URL")
-	validationErrorTest(t, toToken("https://sts.aliyuncs.com/abc"), "unexpected path in pre-signed URL")
-	validationErrorTest(t, toToken("https://sts.aliyuncs.com/?NoInWhiteList=abc"), "non-whitelisted query parameter")
-	validationErrorTest(t, toToken("https://sts.aliyuncs.com/?action=get&action=post"), "query parameter with multiple values not supported")
-	validationErrorTest(t, toToken("https://sts.aliyuncs.com/?action=NotGetCallerIdenity"), "unexpected action parameter in pre-signed URL")
-}
-
 func TestVerifyHTTPError(t *testing.T) {
 	_, err := newVerifier(0, "", errors.New("an error")).Verify(validToken)
-	errorContains(t, err, "error during GET: an error")
+	errorContains(t, err, "call sts.GetCallerIdentity failed: Bad Request, an error")
 	assertSTSError(t, err)
 }
 
 func TestVerifyHTTP403(t *testing.T) {
 	_, err := newVerifier(403, " ", nil).Verify(validToken)
-	errorContains(t, err, "error from RAM (expected 200, got")
+	errorContains(t, err, "call sts.GetCallerIdentity failed: Forbidden")
 	assertSTSError(t, err)
 }
 
 func TestVerifyBodyReadError(t *testing.T) {
 	verifier := tokenVerifier{
+		clusterID: "c2faf4f7584e349cda6dda2a*********",
 		client: &http.Client{
 			Transport: &roundTripper{
 				err: nil,

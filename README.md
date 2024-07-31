@@ -128,7 +128,7 @@ kubectl will `exec` the `ack-ram-tool` binary with the supplied params in your k
 It works using the RAM [`sts:GetCallerIdentity`](https://help.aliyun.com/document_detail/43767.html) API endpoint.
 This endpoint returns information about whatever RAM credentials you use to connect to it.
 
-#### Client side (`ack-ram-authenticator token`)
+#### Client side (`ack-ram-tool credential-plugin get-token`)
 We use this API in a somewhat unusual way by having the Authenticator client generate and pre-sign a request to the endpoint.
 We serialize that request into a token that can pass through the Kubernetes authentication system.
 
@@ -146,55 +146,6 @@ The cluster ID does need to be unique per-cluster, but it doesn't need to be a s
 Some good choices are:
  - A random ID such as from `openssl rand 16 -hex`
  - The domain name of your Kubernetes API server
-
-## Specifying Credentials
-Credentials can be specified for use with `ack-ram-authenticator` via create file at ~/.acs/credentials, for example:
-```
-{
-  "AcsAccessKeyId": "xxxxxxx",
-  "AcsAccessKeySecret": "xxxxxxxxxxxxxxxx"
-}
-```
-if you are using a STS Token, the ~/.acs/credentials file will be like:
-```
-{
-  "AcsAccessKeyId": "xxxxxx",
-  "AcsAccessKeySecret": "xxxxxx",
-  "AcsAccessSecurityToken": "xxxxxx"
-}
-
-```
-This includes specifying RAM credentials by utilizing a credentials file.
-
-
-To use ack-ram-authenticator as client, your kubeconfig would be like this:
-
-```yaml
-apiVersion: v1
-clusters:
-- cluster:
-    server: ${server}
-    certificate-authority-data: ${cert}
-  name: kubernetes
-contexts:
-- context:
-    cluster: kubernetes
-    user: ack
-  name: ack
-current-context: ack
-kind: Config
-preferences: {}
-users:
-- name: ack
-  user:
-    exec:
-      apiVersion: client.authentication.k8s.io/v1beta1
-      command: ack-ram-authenticator
-      args:
-        - "token"
-        - "-i"
-        - "mycluster"
-```
 
 ## Troubleshooting
 
