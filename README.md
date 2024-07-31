@@ -142,10 +142,6 @@ Now that the server knows the RAM identity of the client, it translates this ide
 The Authenticator cluster ID is a unique-per-cluster identifier that prevents certain replay attacks.
 Specifically, it prevents one Authenticator server (e.g., in a dev environment) from using a client's token to authenticate to another Authenticator server in another cluster.
 
-The cluster ID does need to be unique per-cluster, but it doesn't need to be a secret.
-Some good choices are:
- - A random ID such as from `openssl rand 16 -hex`
- - The domain name of your Kubernetes API server
 
 ## Troubleshooting
 
@@ -165,7 +161,7 @@ They can share the same exact configuration file, since there are no secrets sto
 
 ```yaml
 # a unique-per-cluster identifier to prevent replay attacks (see above)
-clusterID: my-dev-cluster.example.com
+clusterID: c1234abcde-xxxx
 
 # default RAM role to assume for `ack-ram-authenticator token`
 defaultRole: acs:ram::000000000000:role/KubernetesAdmin
