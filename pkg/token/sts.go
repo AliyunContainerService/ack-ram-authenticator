@@ -13,7 +13,6 @@ type OpenAPIErrorResp struct {
 	Code      string `json:"Code"`
 }
 
-// https://aliyuque.antfin.com/alibabacloud-openapi/oz5vv9/kg9gn89a69uf2041
 func newOpenAPIErr(statusCode int, body []byte, rawErr error) STSError {
 	var resp OpenAPIErrorResp
 
