@@ -20,10 +20,6 @@ var (
 var reCredential = regexp.MustCompile(`Credential=([^,]+),`)
 
 type V2Token struct {
-	ClusterId string `json:"clusterId"`
-
-	Method  string            `json:"method"`
-	Path    string            `json:"path"`
 	Query   map[string]string `json:"query"`
 	Headers map[string]string `json:"headers"`
 }
@@ -45,15 +41,16 @@ func (v tokenVerifier) parseV2Token(rawToken string) (string, *http.Request, err
 		log.Warnf("parse token failed: %+v", err)
 		return "", nil, err
 	}
-	if err := v.verifyClusterID(t.ClusterId); err != nil {
-		log.Warnf("[%s] found unexpected clusterId from token: %+v", v.clusterID, t.ClusterId)
-		return "", nil, err
-	}
 	if t.Headers == nil {
 		t.Headers = map[string]string{}
 	}
 	if t.Query == nil {
 		t.Query = map[string]string{}
+	}
+	clusterID := t.Query["ACKClusterId"]
+	if err := v.verifyClusterID(clusterID); err != nil {
+		log.Warnf("[%s] found unexpected clusterId from token: %+v", v.clusterID, clusterID)
+		return "", nil, err
 	}
 
 	reqURL := fmt.Sprintf("https://%s/", v.stsEndpoint)
@@ -64,7 +61,7 @@ func (v tokenVerifier) parseV2Token(rawToken string) (string, *http.Request, err
 
 	query := req.URL.Query()
 	for k, vs := range t.Query {
-		if !parameterWhitelist[strings.ToLower(k)] {
+		if !parameterWhitelistV2[strings.ToLower(k)] {
 			continue
 		}
 		if len(vs) > 0 {
@@ -74,7 +71,7 @@ func (v tokenVerifier) parseV2Token(rawToken string) (string, *http.Request, err
 	req.URL.RawQuery = query.Encode()
 
 	for k, vs := range t.Headers {
-		if !parameterWhitelist[strings.ToLower(k)] {
+		if !parameterWhitelistV2[strings.ToLower(k)] {
 			continue
 		}
 		if len(vs) > 0 {

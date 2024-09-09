@@ -150,6 +150,19 @@ var parameterWhitelist = map[string]bool{
 	"ackclusterid":          true,
 }
 
+var parameterWhitelistV2 = map[string]bool{
+	// v2
+	"x-acs-action":          true,
+	"x-acs-version":         true,
+	"authorization":         true,
+	"x-acs-signature-nonce": true,
+	"x-acs-date":            true,
+	"x-acs-content-sha256":  true,
+	"x-acs-content-sm3":     true,
+	"x-acs-security-token":  true,
+	"ackclusterid":          true,
+}
+
 type getCallerIdentityWrapper struct {
 	*responses.BaseResponse
 	AccountID    string `json:"AccountId" xml:"AccountId"`
