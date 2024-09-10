@@ -122,34 +122,6 @@ func NewSTSError(m string) STSError {
 	return STSError{message: m}
 }
 
-var parameterWhitelist = map[string]bool{
-	"action":           true,
-	"durationseconds":  true,
-	"signatureversion": true,
-	"signaturenonce":   true,
-	"signaturemethod":  true,
-	"accesskeyid":      true,
-	"timestamp":        true,
-	"signature":        true,
-	"format":           true,
-	"version":          true,
-	"rolesessionname":  true,
-	"rolearn":          true,
-	"securitytoken":    true,
-	"clusterid":        true,
-
-	// v2
-	"x-acs-action":          true,
-	"x-acs-version":         true,
-	"authorization":         true,
-	"x-acs-signature-nonce": true,
-	"x-acs-date":            true,
-	"x-acs-content-sha256":  true,
-	"x-acs-content-sm3":     true,
-	"x-acs-security-token":  true,
-	"ackclusterid":          true,
-}
-
 var parameterWhitelistV2 = map[string]bool{
 	// v2
 	"x-acs-action":          true,
